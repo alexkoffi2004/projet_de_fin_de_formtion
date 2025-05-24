@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BirthDeclaration {
+  id            String   @id @default(cuid())
+  childName     String
+  birthDate     DateTime
+  birthTime     String
+  birthPlace    String
+  gender        String
+  fatherName    String
+  motherName    String
+  email         String
+  status        String   @default("PENDING")
+  trackingNumber String  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  documents     Documents?
+  payment       Payment?
+  citizen       Citizen  @relation(fields: [citizenId], references: [id])
+  citizenId     String
+  agent         Agent?   @relation(fields: [agentId], references: [id])
+  agentId       String?
+}
+
+model Documents {
+  id              String          @id @default(cuid())
+  parentId        String
+  birthCertificate String
+  familyBook      String?
+  birthDeclaration BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
+  birthDeclarationId String        @unique
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  amount          Float
+  method          String
+  status          String
+  birthDeclaration BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
+  birthDeclarationId String        @unique
+}
+
+model Citizen {
+  id              String            @id @default(cuid())
+  name            String
+  email           String           @unique
+  birthDeclarations BirthDeclaration[]
+}
+
+model Agent {
+  id              String            @id @default(cuid())
+  name            String
+  email           String           @unique
+  birthDeclarations BirthDeclaration[]
+} 
