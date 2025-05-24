@@ -48,7 +48,6 @@ export default function LoginPage() {
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        role: "citizen",
         redirect: false,
       });
 

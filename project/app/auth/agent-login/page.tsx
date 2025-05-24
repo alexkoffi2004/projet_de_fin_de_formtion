@@ -32,49 +32,34 @@ export default function AgentLogin() {
     setIsLoading(true);
 
     try {
-      // Vérifier d'abord si l'agent existe
-      const checkAgent = await fetch('/api/test-agent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: formData.email }),
-      });
-
-      const agentData = await checkAgent.json();
-      console.log('Vérification agent:', agentData);
-
-      if (!agentData.exists) {
-        toast.error("Cet email n'est pas associé à un compte agent");
-        setIsLoading(false);
-        return;
-      }
-
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
         role: "agent",
-        redirect: false,
-        callbackUrl: "/agent/dashboard"
+        redirect: false
       });
 
       console.log('Résultat de la connexion:', result);
 
       if (result?.error) {
         toast.error(result.error);
+        setIsLoading(false);
         return;
       }
 
-      if (result?.url) {
-        router.push(result.url);
+      if (result?.ok) {
+        toast.success("Connexion réussie");
+        // Attendre un court instant pour s'assurer que la session est bien établie
+        setTimeout(() => {
+          router.push("/agent/dashboard");
+        }, 1000);
       } else {
-        router.push("/agent/dashboard");
+        toast.error("Échec de la connexion");
+        setIsLoading(false);
       }
-      toast.success("Connexion réussie");
     } catch (error) {
       console.error("Erreur de connexion:", error);
       toast.error("Une erreur est survenue lors de la connexion");
-    } finally {
       setIsLoading(false);
     }
   };

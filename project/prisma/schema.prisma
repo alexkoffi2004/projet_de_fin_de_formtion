@@ -1,62 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
-model BirthDeclaration {
-  id            String   @id @default(cuid())
-  childName     String
-  birthDate     DateTime
-  birthTime     String
-  birthPlace    String
-  gender        String
-  fatherName    String
-  motherName    String
-  email         String
-  status        String   @default("PENDING")
-  trackingNumber String  @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  documents     Documents?
-  payment       Payment?
-  citizen       Citizen  @relation(fields: [citizenId], references: [id])
-  citizenId     String
-  agent         Agent?   @relation(fields: [agentId], references: [id])
-  agentId       String?
+model User {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  email          String    @unique
+  name           String?
+  hashedPassword String
+  role           String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
-model Documents {
-  id              String          @id @default(cuid())
-  parentId        String
-  birthCertificate String
-  familyBook      String?
-  birthDeclaration BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
-  birthDeclarationId String        @unique
+model Request {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  status      String
+  type        String
+  citizenId   String   @db.ObjectId
+  agentId     String?  @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  assignedTo  String?  @db.ObjectId
+}
+
+model BirthDeclaration {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  citizenId       String   @db.ObjectId
+  childFirstName  String
+  childLastName   String
+  childGender     String
+  birthDate       DateTime
+  birthPlace      String
+  fatherFirstName String
+  fatherLastName  String
+  motherFirstName String
+  motherLastName  String
+  status          String   @default("en_attente")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  documents       Document[]
+  payment         Payment?
+  agent           Agent?   @relation(fields: [agentId], references: [id])
+  agentId         String?  @db.ObjectId
+}
+
+model Document {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  birthDeclarationId String  @db.ObjectId
+  birthDeclaration  BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
+  type             String
+  url              String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Payment {
-  id              String          @id @default(cuid())
-  amount          Float
-  method          String
-  status          String
-  birthDeclaration BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
-  birthDeclarationId String        @unique
-}
-
-model Citizen {
-  id              String            @id @default(cuid())
-  name            String
-  email           String           @unique
-  birthDeclarations BirthDeclaration[]
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  birthDeclarationId String  @db.ObjectId @unique
+  birthDeclaration  BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
+  amount           Float
+  status           String   @default("en_attente")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Agent {
-  id              String            @id @default(cuid())
-  name            String
-  email           String           @unique
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  email            String   @unique
+  password         String
+  firstName        String
+  lastName         String
+  role             String   @default("agent")
   birthDeclarations BirthDeclaration[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 } 

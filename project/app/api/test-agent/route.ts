@@ -24,20 +24,49 @@ export async function POST(request: Request) {
     
     // Vérifier le contenu de la collection agents
     const allAgents = await db.collection('agents').find({}).toArray();
-    console.log('Tous les agents:', allAgents);
+    console.log('Nombre total d\'agents:', allAgents.length);
     
-    const agent = await db.collection('agents').findOne({ email });
-    console.log('Agent recherché:', agent);
-    
+    // Afficher la structure exacte du premier agent pour debug
+    if (allAgents.length > 0) {
+      console.log('Structure du premier agent:', JSON.stringify(allAgents[0], null, 2));
+    }
+
+    // Rechercher l'agent avec une requête plus flexible
+    const agent = await db.collection('agents').findOne({
+      $or: [
+        { email: email },
+        { email: email.toLowerCase() },
+        { email: email.toUpperCase() }
+      ]
+    });
+
+    // Si l'agent n'est pas trouvé, afficher tous les agents pour debug
     if (!agent) {
+      console.log('Structure des agents dans la base:');
+      allAgents.forEach((a, index) => {
+        console.log(`Agent ${index + 1}:`, {
+          email: a.email,
+          name: a.name,
+          role: a.role,
+          status: a.status,
+          _id: a._id,
+          password: a.password ? 'présent' : 'absent'
+        });
+      });
+
       return NextResponse.json({ 
         exists: false,
         message: "Agent non trouvé",
         debug: {
           emailRecherche: email,
-          collections: collections.map(c => c.name),
           nombreAgents: allAgents.length,
-          uri: process.env.MONGODB_URI ? 'définie' : 'non définie'
+          agents: allAgents.map(a => ({
+            email: a.email,
+            name: a.name,
+            role: a.role,
+            status: a.status,
+            hasPassword: !!a.password
+          }))
         }
       });
     }
@@ -48,6 +77,7 @@ export async function POST(request: Request) {
       agent: {
         email: agent.email,
         name: agent.name,
+        role: agent.role,
         status: agent.status
       }
     });

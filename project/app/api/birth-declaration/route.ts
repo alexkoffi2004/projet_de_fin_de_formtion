@@ -1,35 +1,67 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    // Vérifier la session
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: 'Non autorisé' },
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
     
+    // Validation des données requises
+    const requiredFields = [
+      'childFirstName',
+      'childLastName',
+      'childGender',
+      'birthDate',
+      'birthPlace',
+      'fatherFirstName',
+      'fatherLastName',
+      'motherFirstName',
+      'motherLastName'
+    ];
+
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        return NextResponse.json(
+          { success: false, error: `Le champ ${field} est requis` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Créer la déclaration de naissance dans la base de données
     const birthDeclaration = await prisma.birthDeclaration.create({
       data: {
-        childName: data.childName,
+        citizenId: session.user.id,
+        childFirstName: data.childFirstName,
+        childLastName: data.childLastName,
+        childGender: data.childGender,
         birthDate: new Date(data.birthDate),
-        birthTime: data.birthTime,
         birthPlace: data.birthPlace,
-        gender: data.gender,
-        fatherName: data.fatherName,
-        motherName: data.motherName,
-        email: data.email,
-        status: 'PENDING',
-        trackingNumber: generateTrackingNumber(),
+        fatherFirstName: data.fatherFirstName,
+        fatherLastName: data.fatherLastName,
+        motherFirstName: data.motherFirstName,
+        motherLastName: data.motherLastName,
+        status: 'en_attente',
         documents: {
-          create: {
-            parentId: data.parentId,
-            birthCertificate: data.birthCertificate,
-            familyBook: data.familyBook
-          }
+          create: data.documents?.map((doc: any) => ({
+            type: doc.type,
+            url: doc.url
+          })) || []
         },
         payment: {
           create: {
             amount: 1000,
-            method: data.paymentMethod,
-            status: 'COMPLETED'
+            status: 'en_attente'
           }
         }
       }

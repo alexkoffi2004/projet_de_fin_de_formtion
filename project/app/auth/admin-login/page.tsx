@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { login } from "@/lib/auth";
+import { signIn } from "next-auth/react";
 import { UserRole } from "@/types/user";
 
 const formSchema = z.object({
@@ -44,19 +44,28 @@ export default function AdminLoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsLoading(true);
-      const response = await login(values);
       
-      // Vérifier si l'utilisateur est un administrateur
-      if (response.user.role !== UserRole.ADMIN) {
-        throw new Error("Accès non autorisé. Cette page est réservée aux administrateurs.");
-      }
-      
-      toast({
-        title: "Connexion réussie",
-        description: "Vous êtes maintenant connecté en tant qu'administrateur.",
+      const result = await signIn("credentials", {
+        email: values.email,
+        password: values.password,
+        role: "admin",
+        redirect: false,
       });
-      
-      router.push("/admin/dashboard");
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      if (result?.ok) {
+        toast({
+          title: "Connexion réussie",
+          description: "Vous êtes maintenant connecté en tant qu'administrateur.",
+        });
+        router.push("/admin/dashboard");
+        router.refresh();
+      } else {
+        throw new Error("Échec de la connexion");
+      }
     } catch (error) {
       toast({
         title: "Erreur de connexion",

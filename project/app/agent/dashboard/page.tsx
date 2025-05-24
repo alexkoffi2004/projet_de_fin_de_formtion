@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Shield, FileText, User, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import { logout } from "@/lib/auth";
+import { logout } from "@/lib/client-auth";
 
 interface AgentStats {
   documentsEnCours: number;
@@ -53,8 +53,8 @@ export default function AgentDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/auth/agent-login');
   };
 
