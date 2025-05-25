@@ -14,8 +14,8 @@ model User {
   id             String    @id @default(auto()) @map("_id") @db.ObjectId
   email          String    @unique
   name           String?
-  hashedPassword String
-  role           String
+  hashedPassword String    // Le mot de passe hashé
+  role           String    @default("admin")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
@@ -25,7 +25,9 @@ model Request {
   status      String
   type        String
   citizenId   String   @db.ObjectId
+  citizen     Citizen  @relation(fields: [citizenId], references: [id])
   agentId     String?  @db.ObjectId
+  agent       Agent?   @relation(fields: [agentId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   assignedTo  String?  @db.ObjectId
@@ -34,6 +36,7 @@ model Request {
 model BirthDeclaration {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   citizenId       String   @db.ObjectId
+  citizen         Citizen  @relation(fields: [citizenId], references: [id])
   childFirstName  String
   childLastName   String
   childGender     String
@@ -72,14 +75,37 @@ model Payment {
   updatedAt        DateTime @updatedAt
 }
 
+model Citizen {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  email          String    @unique
+  name           String?
+  hashedPassword String    // Le mot de passe hashé
+  role           String    @default("citizen")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  requests       Request[]
+  birthDeclarations BirthDeclaration[]
+}
+
 model Agent {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   email            String   @unique
-  password         String
+  hashedPassword   String   // Le mot de passe hashé
   firstName        String
   lastName         String
   role             String   @default("agent")
   birthDeclarations BirthDeclaration[]
+  requests         Request[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+model Admin {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  email          String    @unique
+  name           String?
+  hashedPassword String
+  role           String    @default("admin")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 } 

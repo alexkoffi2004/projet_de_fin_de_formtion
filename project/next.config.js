@@ -3,20 +3,54 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  images: { unoptimized: true },
+  images: { 
+    unoptimized: true,
+    domains: ['images.pexels.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
+      // Ne pas essayer de charger les modules Node.js côté client
       config.resolve.fallback = {
         ...config.resolve.fallback,
+        fs: false,
         net: false,
         tls: false,
-        fs: false,
         dns: false,
         child_process: false,
+        os: false,
+        path: false,
+        crypto: false,
+        stream: false,
+        http: false,
+        https: false,
+        zlib: false,
+        util: false,
+        buffer: false,
+        url: false,
+        assert: false,
+        constants: false,
+        events: false,
+        querystring: false,
+        string_decoder: false,
+        timers: false,
+        vm: false,
+        worker_threads: false,
       };
     }
     return config;
   },
+  // Désactiver le strict mode pour éviter les problèmes avec MongoDB
+  reactStrictMode: false,
+  // Configurer les types de modules à transpiler
+  transpilePackages: ['mongodb'],
   async headers() {
     return [
       {
@@ -44,4 +78,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = nextConfig; 

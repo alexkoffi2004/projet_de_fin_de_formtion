@@ -194,57 +194,86 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          if (!credentials?.email || !credentials?.password) {
-            console.log("[Auth] Email ou mot de passe manquant");
-            return null;
+          if (!credentials?.email || !credentials?.password || !credentials?.role) {
+            console.log("[Auth] Email, mot de passe ou rôle manquant");
+            throw new Error("Email, mot de passe et rôle requis");
           }
 
-          console.log("[Auth] Tentative de connexion pour:", credentials.email);
-
-          const user = await prisma.user.findUnique({
-            where: {
-              email: credentials.email,
-            },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              hashedPassword: true,
-            },
+          console.log("[Auth] Tentative de connexion pour:", {
+            email: credentials.email,
+            role: credentials.role
           });
 
+          let user = null;
+          let collection = "";
+
+          // Sélection de la collection appropriée selon le rôle
+          switch (credentials.role) {
+            case "citizen":
+              collection = "citizens";
+              user = await prisma.citizen.findUnique({
+                where: { email: credentials.email }
+              });
+              break;
+            case "agent":
+              collection = "agents";
+              user = await prisma.agent.findUnique({
+                where: { email: credentials.email }
+              });
+              break;
+            case "admin":
+              collection = "users";
+              user = await prisma.user.findUnique({
+                where: { email: credentials.email }
+              });
+              break;
+            default:
+              throw new Error("Rôle non valide");
+          }
+
           if (!user) {
-            console.log("[Auth] Utilisateur non trouvé:", credentials.email);
-            return null;
+            console.log(`[Auth] Utilisateur non trouvé dans la collection ${collection}`);
+            throw new Error("Email ou mot de passe incorrect");
           }
 
-          console.log("[Auth] Utilisateur trouvé, vérification du mot de passe");
+          console.log("[Auth] Utilisateur trouvé:", {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            collection
+          });
 
-          const isPasswordValid = await compare(credentials.password, user.hashedPassword);
+          // Vérification du mot de passe avec bcrypt
+          try {
+            const isPasswordValid = await compare(credentials.password, user.hashedPassword);
+            console.log("[Auth] Résultat de la vérification du mot de passe:", isPasswordValid);
 
-          if (!isPasswordValid) {
-            console.log("[Auth] Mot de passe incorrect pour:", credentials.email);
-            return null;
+            if (!isPasswordValid) {
+              console.log("[Auth] Mot de passe incorrect");
+              throw new Error("Email ou mot de passe incorrect");
+            }
+          } catch (error) {
+            console.error("[Auth] Erreur lors de la vérification du mot de passe:", error);
+            throw new Error("Erreur lors de la vérification du mot de passe");
           }
 
-          // Vérifier le rôle si spécifié
-          if (credentials.role && user.role !== credentials.role) {
-            console.log("[Auth] Rôle incorrect pour:", credentials.email, "Attendu:", credentials.role, "Reçu:", user.role);
-            return null;
-          }
+          console.log("[Auth] Connexion réussie pour:", {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            collection
+          });
 
-          console.log("[Auth] Connexion réussie pour:", credentials.email, "Rôle:", user.role);
-
+          // Retourner les informations de l'utilisateur
           return {
             id: user.id,
             email: user.email,
-            name: user.name,
+            name: user.name || `${user.firstName} ${user.lastName}`,
             role: user.role,
           };
         } catch (error) {
-          console.error("[Auth] Erreur lors de l'authentification:", error);
-          return null;
+          console.error("[Auth] Erreur d'authentification:", error);
+          throw error;
         }
       },
     }),
@@ -252,27 +281,18 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const customUser = user as CustomUser;
-        return {
-          ...token,
-          id: customUser.id,
-          role: customUser.role
-        };
+        token.id = user.id;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
-      const customToken = token as CustomToken;
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: customToken.id,
-          role: customToken.role
-        }
-      };
+      if (token) {
+        session.user.id = token.id;
+        session.user.role = token.role;
+      }
+      return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
-  debug: true, // Activer le mode debug
+  debug: process.env.NODE_ENV === "development",
 }; 
