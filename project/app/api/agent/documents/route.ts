@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { connectToDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { authOptions } from '@/lib/auth';
 
 // GET - Récupérer tous les documents ou un document spécifique
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Non autorisé' },
@@ -15,12 +16,13 @@ export async function GET(request: Request) {
     }
 
     const { db } = await connectToDatabase();
-    const agent = await db.collection('agents').findOne({ email: session.user.email });
 
+    // Vérifier si l'utilisateur est un agent
+    const agent = await db.collection('agents').findOne({ email: session.user.email });
     if (!agent) {
       return NextResponse.json(
-        { error: 'Agent non trouvé' },
-        { status: 404 }
+        { error: 'Accès non autorisé' },
+        { status: 403 }
       );
     }
 
@@ -59,35 +61,34 @@ export async function GET(request: Request) {
 
       return NextResponse.json(documentWithCitizen);
     } else {
-      // Récupérer tous les documents
+      // Récupérer toutes les demandes avec pagination et tri
       const documents = await db.collection('documents')
-        .find({})
-        .sort({ createdAt: -1 })
+        .find()
+        .sort({ createdAt: -1 }) // Trier par date de création décroissante
         .toArray();
 
-      // Pour chaque document, récupérer les informations du citoyen
-      const documentsWithCitizen = await Promise.all(documents.map(async (doc) => {
-        const citizen = await db.collection('citizens').findOne({ email: doc.citizenEmail });
-        return {
-          id: doc._id.toString(),
-          type: doc.type,
-          date: new Date(doc.createdAt).toLocaleDateString('fr-FR'),
-          status: doc.status === 'en_attente' ? 'En traitement' :
-                  doc.status === 'valide' ? 'Validé' :
-                  doc.status === 'rejete' ? 'Rejeté' : doc.status,
-          citizen: {
-            name: citizen ? `${citizen.prenom} ${citizen.nom}` : 'Inconnu',
-            email: doc.citizenEmail
-          }
-        };
+      // Transformer les données pour inclure les informations nécessaires
+      const formattedDocuments = documents.map(doc => ({
+        _id: doc._id,
+        documentType: doc.documentType,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        citizenEmail: doc.citizenEmail,
+        reason: doc.reason,
+        additionalInfo: doc.additionalInfo,
+        urgency: doc.urgency,
+        files: doc.files || [],
+        validationDate: doc.validationDate,
+        rejectionReason: doc.rejectionReason,
+        validatedBy: doc.validatedBy
       }));
 
-      return NextResponse.json(documentsWithCitizen);
+      return NextResponse.json(formattedDocuments);
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des documents:', error);
+    console.error('Erreur lors de la récupération des demandes:', error);
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération des documents' },
+      { error: 'Erreur lors de la récupération des demandes' },
       { status: 500 }
     );
   }

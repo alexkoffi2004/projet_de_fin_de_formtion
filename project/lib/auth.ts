@@ -176,6 +176,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
 
 // NextAuth configuration
 export const authOptions: NextAuthOptions = {
+  debug: process.env.NODE_ENV === 'development',
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -294,5 +295,4 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  debug: process.env.NODE_ENV === "development",
 }; 

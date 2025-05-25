@@ -10,7 +10,9 @@ import {
   CheckCircle, 
   AlertCircle, 
   ChevronRight, 
-  Search 
+  Search,
+  Download,
+  Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,35 +28,14 @@ interface Stats {
   pendingRequests: number;
   validatedRequests: number;
   rejectedRequests: number;
+  recentRequests: Array<{
+    _id: string;
+    documentType: string;
+    status: string;
+    createdAt: string;
+    documentUrl?: string;
+  }>;
 }
-
-interface RecentRequest {
-  id: string;
-  type: string;
-  date: string;
-  status: string;
-}
-
-const notifications = [
-  {
-    id: 1,
-    message: "Votre demande d'acte de naissance a été acceptée.",
-    date: "Il y a 2 heures",
-    read: false
-  },
-  {
-    id: 2,
-    message: "Le paiement pour votre demande a été confirmé.",
-    date: "Il y a 1 jour",
-    read: true
-  },
-  {
-    id: 3,
-    message: "Votre document est prêt à être téléchargé.",
-    date: "Il y a 3 jours",
-    read: true
-  }
-];
 
 export default function CitizenDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -63,18 +44,14 @@ export default function CitizenDashboard() {
     lastMonthRequests: 0,
     pendingRequests: 0,
     validatedRequests: 0,
-    rejectedRequests: 0
+    rejectedRequests: 0,
+    recentRequests: []
   });
-  const [recentRequests, setRecentRequests] = useState<RecentRequest[]>([]);
-  const [allRequests, setAllRequests] = useState<RecentRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
-  const [isLoadingAllRequests, setIsLoadingAllRequests] = useState(true);
-  
+  const [activeTab, setActiveTab] = useState("all");
+
   useEffect(() => {
     fetchStats();
-    fetchRecentRequests();
-    fetchAllRequests();
   }, []);
 
   const fetchStats = async () => {
@@ -83,7 +60,7 @@ export default function CitizenDashboard() {
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des statistiques');
       }
-      const data = await response.json();
+      const data = await response.json() as Stats;
       setStats(data);
     } catch (error) {
       console.error('Erreur:', error);
@@ -93,42 +70,57 @@ export default function CitizenDashboard() {
     }
   };
 
-  const fetchRecentRequests = async () => {
-    try {
-      const response = await fetch('/api/citizen/recent-requests');
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des demandes récentes');
-      }
-      const data = await response.json();
-      setRecentRequests(data);
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast.error('Erreur lors de la récupération des demandes récentes');
-    } finally {
-      setIsLoadingRequests(false);
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'en_attente':
+        return <Badge variant="secondary">En attente</Badge>;
+      case 'valide':
+        return <Badge variant="success">Validé</Badge>;
+      case 'rejete':
+        return <Badge variant="destructive">Rejeté</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const fetchAllRequests = async () => {
-    try {
-      const response = await fetch('/api/citizen/all-requests');
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération de l\'historique des demandes');
-      }
-      const data = await response.json();
-      setAllRequests(data);
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast.error('Erreur lors de la récupération de l\'historique des demandes');
-    } finally {
-      setIsLoadingAllRequests(false);
+  const getDocumentTypeLabel = (type: string) => {
+    const types: { [key: string]: string } = {
+      'birth_declaration': 'Déclaration de naissance',
+      'birth_certificate': 'Acte de naissance',
+      'residence_certificate': 'Certificat de résidence',
+      'marriage_certificate': 'Certificat de mariage',
+      'criminal_record': 'Extrait de casier judiciaire',
+      'id_card': 'Carte d\'identité',
+      'passport': 'Passeport'
+    };
+    return types[type] || type;
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'en_attente':
+        return 'En attente de validation';
+      case 'valide':
+        return 'Document validé et disponible';
+      case 'rejete':
+        return 'Demande rejetée';
+      default:
+        return status;
     }
   };
-  
-  const filteredRequests = allRequests.filter(request => 
-    request.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    request.type.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+
+  const filteredRequests = stats.recentRequests.filter(request => {
+    const matchesSearch = 
+      getDocumentTypeLabel(request.documentType).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request._id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (activeTab === 'all') return matchesSearch;
+    if (activeTab === 'pending') return matchesSearch && request.status === 'en_attente';
+    if (activeTab === 'validated') return matchesSearch && request.status === 'valide';
+    if (activeTab === 'rejected') return matchesSearch && request.status === 'rejete';
+    
+    return matchesSearch;
+  });
 
   return (
     <CitizenLayout>
@@ -198,60 +190,74 @@ export default function CitizenDashboard() {
               </CardContent>
             </Card>
           </div>
-          
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="md:col-span-2">
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="col-span-4">
               <CardHeader>
-                <CardTitle>Vos dernières demandes</CardTitle>
-                <CardDescription>
-                  Suivez l'état de vos demandes récentes
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Mes demandes</CardTitle>
+                    <CardDescription>
+                      Historique de vos demandes de documents
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      placeholder="Rechercher..."
+                      value={searchTerm}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                      className="w-[200px]"
+                    />
+                  </div>
+                </div>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="all">Tous</TabsTrigger>
+                    <TabsTrigger value="pending">En attente</TabsTrigger>
+                    <TabsTrigger value="validated">Validés</TabsTrigger>
+                    <TabsTrigger value="rejected">Rejetés</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {isLoadingRequests ? (
-                    <div className="flex items-center justify-center py-4">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                  ) : recentRequests.length === 0 ? (
+                  {isLoading ? (
+                    <div className="text-center py-4">Chargement...</div>
+                  ) : filteredRequests.length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">
-                      Aucune demande récente
+                      Aucune demande trouvée
                     </div>
                   ) : (
-                    recentRequests.map((request) => (
-                      <div key={request.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0 animation-slideUp">
-                        <div className="space-y-1">
-                          <p className="font-medium">{request.type}</p>
-                          <div className="flex items-center space-x-2">
-                            <p className="text-sm text-muted-foreground">{request.id}</p>
-                            <span className="text-sm text-muted-foreground">•</span>
-                            <p className="text-sm text-muted-foreground">{request.date}</p>
+                    filteredRequests.map((request) => (
+                      <div
+                        key={request._id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">
+                              {getDocumentTypeLabel(request.documentType)}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(request.createdAt).toLocaleDateString()}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center">
-                          <Badge 
-                            variant={
-                              request.status === "Validé" 
-                                ? "success" 
-                                : request.status === "Rejeté" 
-                                  ? "destructive" 
-                                  : "outline"
-                            }
-                            className={
-                              request.status === "Validé" 
-                                ? "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100" 
-                                : request.status === "Rejeté" 
-                                  ? "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100" 
-                                  : "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100"
-                            }
-                          >
-                            {request.status}
-                          </Badge>
-                          <Link href={`/citizen/document/${request.id}`}>
-                            <Button variant="ghost" size="icon">
-                              <ChevronRight className="h-4 w-4" />
+                        <div className="flex items-center space-x-4">
+                          {getStatusBadge(request.status)}
+                          {request.status === 'valide' && request.documentUrl && (
+                            <Button variant="ghost" size="icon" asChild>
+                              <Link href={request.documentUrl}>
+                                <Download className="h-4 w-4" />
+                              </Link>
                             </Button>
-                          </Link>
+                          )}
+                          <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/citizen/document/${request._id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
                         </div>
                       </div>
                     ))
@@ -259,228 +265,53 @@ export default function CitizenDashboard() {
                 </div>
               </CardContent>
             </Card>
-            
-            <Card>
+
+            <Card className="col-span-3">
               <CardHeader>
-                <CardTitle>Notifications récentes</CardTitle>
+                <CardTitle>Notifications</CardTitle>
                 <CardDescription>
-                  Restez informé des mises à jour
+                  Mises à jour de vos demandes
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {notifications.map((notification) => (
-                    <div key={notification.id} className="flex items-start space-x-4 border-b pb-4 last:border-0 last:pb-0 animation-fadeIn">
-                      <div className={`mt-0.5 rounded-full p-1 ${notification.read ? 'opacity-30' : 'bg-primary/10 text-primary'}`}>
+                  {stats.recentRequests.map((request) => (
+                    <div
+                      key={request._id}
+                      className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className={`mt-1 rounded-full p-1 ${
+                        request.status === 'valide' 
+                          ? 'bg-green-100 text-green-600' 
+                          : request.status === 'rejete'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-amber-100 text-amber-600'
+                      }`}>
                         <Bell className="h-4 w-4" />
                       </div>
-                      <div className="space-y-1">
-                        <p className={`text-sm ${notification.read ? 'text-muted-foreground' : 'font-medium'}`}>
-                          {notification.message}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">
+                            {getDocumentTypeLabel(request.documentType)}
+                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(request.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {getStatusLabel(request.status)}
                         </p>
-                        <p className="text-xs text-muted-foreground">{notification.date}</p>
+                        {request.status === 'valide' && request.documentUrl && (
+                          <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
+                            <Link href={request.documentUrl}>
+                              Télécharger le document
+                            </Link>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Toutes vos demandes</CardTitle>
-                <CardDescription>
-                  Historique complet de vos demandes
-                </CardDescription>
-                <div className="flex w-full max-w-sm items-center space-x-2">
-                  <Input 
-                    type="search" 
-                    placeholder="Rechercher une demande..." 
-                    className="w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  <Button type="submit" size="icon" variant="ghost">
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="all" className="w-full">
-                  <TabsList className="w-full max-w-md grid grid-cols-4">
-                    <TabsTrigger value="all">Tous</TabsTrigger>
-                    <TabsTrigger value="pending">En attente</TabsTrigger>
-                    <TabsTrigger value="approved">Validés</TabsTrigger>
-                    <TabsTrigger value="rejected">Rejetés</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="all">
-                    <div className="rounded-md border">
-                      <div className="grid grid-cols-4 p-4 font-medium">
-                        <div>Référence</div>
-                        <div>Type de document</div>
-                        <div>Date</div>
-                        <div>Statut</div>
-                      </div>
-                      <div className="divide-y">
-                        {isLoadingAllRequests ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          </div>
-                        ) : filteredRequests.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            Aucune demande trouvée
-                          </div>
-                        ) : (
-                          filteredRequests.map((request) => (
-                            <Link href={`/citizen/document/${request.id}`} key={request.id}>
-                              <div className="grid grid-cols-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors">
-                                <div>{request.id}</div>
-                                <div>{request.type}</div>
-                                <div>{request.date}</div>
-                                <div>
-                                  <Badge 
-                                    variant={
-                                      request.status === "Validé" 
-                                        ? "success" 
-                                        : request.status === "Rejeté" 
-                                          ? "destructive" 
-                                          : "outline"
-                                    }
-                                    className={
-                                      request.status === "Validé" 
-                                        ? "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100" 
-                                        : request.status === "Rejeté" 
-                                          ? "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100" 
-                                          : "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100"
-                                    }
-                                  >
-                                    {request.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </Link>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="pending">
-                    <div className="rounded-md border">
-                      <div className="grid grid-cols-4 p-4 font-medium">
-                        <div>Référence</div>
-                        <div>Type de document</div>
-                        <div>Date</div>
-                        <div>Statut</div>
-                      </div>
-                      <div className="divide-y">
-                        {isLoadingAllRequests ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          </div>
-                        ) : filteredRequests.filter(req => req.status === "En traitement").length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            Aucune demande en attente
-                          </div>
-                        ) : (
-                          filteredRequests
-                            .filter(req => req.status === "En traitement")
-                            .map((request) => (
-                              <Link href={`/citizen/document/${request.id}`} key={request.id}>
-                                <div className="grid grid-cols-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors">
-                                  <div>{request.id}</div>
-                                  <div>{request.type}</div>
-                                  <div>{request.date}</div>
-                                  <div>
-                                    <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">
-                                      {request.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="approved">
-                    <div className="rounded-md border">
-                      <div className="grid grid-cols-4 p-4 font-medium">
-                        <div>Référence</div>
-                        <div>Type de document</div>
-                        <div>Date</div>
-                        <div>Statut</div>
-                      </div>
-                      <div className="divide-y">
-                        {isLoadingAllRequests ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          </div>
-                        ) : filteredRequests.filter(req => req.status === "Validé").length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            Aucune demande validée
-                          </div>
-                        ) : (
-                          filteredRequests
-                            .filter(req => req.status === "Validé")
-                            .map((request) => (
-                              <Link href={`/citizen/document/${request.id}`} key={request.id}>
-                                <div className="grid grid-cols-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors">
-                                  <div>{request.id}</div>
-                                  <div>{request.type}</div>
-                                  <div>{request.date}</div>
-                                  <div>
-                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100">
-                                      {request.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="rejected">
-                    <div className="rounded-md border">
-                      <div className="grid grid-cols-4 p-4 font-medium">
-                        <div>Référence</div>
-                        <div>Type de document</div>
-                        <div>Date</div>
-                        <div>Statut</div>
-                      </div>
-                      <div className="divide-y">
-                        {isLoadingAllRequests ? (
-                          <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          </div>
-                        ) : filteredRequests.filter(req => req.status === "Rejeté").length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            Aucune demande rejetée
-                          </div>
-                        ) : (
-                          filteredRequests
-                            .filter(req => req.status === "Rejeté")
-                            .map((request) => (
-                              <Link href={`/citizen/document/${request.id}`} key={request.id}>
-                                <div className="grid grid-cols-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors">
-                                  <div>{request.id}</div>
-                                  <div>{request.type}</div>
-                                  <div>{request.date}</div>
-                                  <div>
-                                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100">
-                                      {request.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </Link>
-                            ))
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
               </CardContent>
             </Card>
           </div>

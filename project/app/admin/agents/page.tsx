@@ -1,51 +1,74 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Plus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { AdminLayout } from "@/components/layouts/admin-layout";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Plus, Trash2, UserPlus } from "lucide-react";
 
 interface Agent {
   _id: string;
   email: string;
-  name: string;
-  createdAt: Date;
+  nom: string;
+  prenom: string;
+  role: string;
+  createdAt: string;
 }
 
 export default function AdminAgents() {
-  const { data: session } = useSession();
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newAgent, setNewAgent] = useState({
-    email: '',
-    name: '',
-    password: ''
+    email: "",
+    password: "",
+    nom: "",
+    prenom: "",
+    role: "agent"
   });
 
   useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        const response = await fetch('/api/admin/agents');
-        const data = await response.json();
-        if (data.status === 'success') {
-          setAgents(data.data);
-        }
-      } catch (error) {
-        console.error('Erreur lors de la récupération des agents:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    fetchAgents();
+  }, []);
 
-    if (session) {
-      fetchAgents();
+  const fetchAgents = async () => {
+    try {
+      const response = await fetch('/api/admin/agents');
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des agents');
+      }
+      const data = await response.json();
+      setAgents(data);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la récupération des agents');
+    } finally {
+      setIsLoading(false);
     }
-  }, [session]);
+  };
 
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,110 +81,169 @@ export default function AdminAgents() {
         body: JSON.stringify(newAgent),
       });
 
-      const data = await response.json();
-      if (data.status === 'success') {
-        setAgents([...agents, data.data]);
-        setIsDialogOpen(false);
-        setNewAgent({ email: '', name: '', password: '' });
-        alert('Agent créé avec succès. Identifiants : ' + JSON.stringify(data.credentials));
-      } else {
-        alert('Erreur lors de la création de l\'agent');
+      if (!response.ok) {
+        throw new Error('Erreur lors de la création de l\'agent');
       }
+
+      toast.success('Agent créé avec succès');
+      setIsDialogOpen(false);
+      setNewAgent({
+        email: "",
+        password: "",
+        nom: "",
+        prenom: "",
+        role: "agent"
+      });
+      fetchAgents();
     } catch (error) {
       console.error('Erreur:', error);
-      alert('Une erreur est survenue');
+      toast.error('Erreur lors de la création de l\'agent');
     }
   };
 
-  if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">Chargement...</div>;
-  }
+  const handleDeleteAgent = async (agentId: string) => {
+    try {
+      const response = await fetch(`/api/admin/agents?id=${agentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la suppression de l\'agent');
+      }
+
+      toast.success('Agent supprimé avec succès');
+      fetchAgents();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la suppression de l\'agent');
+    }
+  };
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Gestion des Agents</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nouvel Agent
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Créer un nouvel agent</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreateAgent} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nom</Label>
-                <Input
-                  id="name"
-                  value={newAgent.name}
-                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newAgent.email}
-                  onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newAgent.password}
-                  onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="flex justify-end space-x-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Annuler
+    <AdminLayout>
+      <div className="flex flex-col">
+        <div className="flex-1 space-y-4 p-8 pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Gestion des Agents</h2>
+              <p className="text-muted-foreground">
+                Créez et gérez les agents de la mairie
+              </p>
+            </div>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Nouvel Agent
                 </Button>
-                <Button type="submit">
-                  Créer l'agent
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Créer un nouvel agent</DialogTitle>
+                  <DialogDescription>
+                    Remplissez les informations pour créer un nouvel agent
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateAgent} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="nom">Nom</Label>
+                      <Input
+                        id="nom"
+                        value={newAgent.nom}
+                        onChange={(e) => setNewAgent({ ...newAgent, nom: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="prenom">Prénom</Label>
+                      <Input
+                        id="prenom"
+                        value={newAgent.prenom}
+                        onChange={(e) => setNewAgent({ ...newAgent, prenom: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newAgent.email}
+                      onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Mot de passe</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newAgent.password}
+                      onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit">Créer l'agent</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
 
-      <div className="grid gap-4">
-        {agents.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-gray-500">Aucun agent trouvé</p>
-            </CardContent>
-          </Card>
-        ) : (
-          agents.map((agent) => (
-            <Card key={agent._id}>
-              <CardHeader>
-                <CardTitle>{agent.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">{agent.email}</p>
-                <p className="text-sm text-gray-500">
-                  Créé le {new Date(agent.createdAt).toLocaleDateString()}
-                </p>
-              </CardContent>
-            </Card>
-          ))
-        )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {isLoading ? (
+              <div>Chargement...</div>
+            ) : agents.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                Aucun agent trouvé
+              </div>
+            ) : (
+              agents.map((agent) => (
+                <Card key={agent._id}>
+                  <CardHeader>
+                    <CardTitle>{agent.prenom} {agent.nom}</CardTitle>
+                    <CardDescription>{agent.email}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Créé le {new Date(agent.createdAt).toLocaleDateString()}
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Cette action est irréversible. L'agent sera définitivement supprimé.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteAgent(agent._id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Supprimer
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 } 

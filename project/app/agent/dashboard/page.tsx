@@ -1,49 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { 
+  FileText, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle,
+  BarChart,
+  Calendar,
+  Eye
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Shield, FileText, User, LogOut } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { AgentLayout } from "@/components/layouts/agent-layout";
 import { toast } from "sonner";
-import { logout } from "@/lib/client-auth";
 
-interface AgentStats {
-  documentsEnCours: number;
-  documentsTraites: number;
-  documentsEnAttente: number;
+interface Stats {
+  totalRequests: number;
+  lastMonthRequests: number;
+  pendingRequests: number;
+  validatedRequests: number;
+  rejectedRequests: number;
+  recentRequests: Array<{
+    _id: string;
+    documentType: string;
+    status: string;
+    createdAt: string;
+    citizenEmail: string;
+  }>;
+  statsByType: Array<{
+    _id: string;
+    count: number;
+    pending: number;
+    validated: number;
+    rejected: number;
+  }>;
+  statsByDay: Array<{
+    _id: string;
+    count: number;
+  }>;
 }
 
 export default function AgentDashboard() {
-  const router = useRouter();
-  const { data: session, status } = useSession();
-  const [stats, setStats] = useState<AgentStats>({
-    documentsEnCours: 0,
-    documentsTraites: 0,
-    documentsEnAttente: 0
+  const [stats, setStats] = useState<Stats>({
+    totalRequests: 0,
+    lastMonthRequests: 0,
+    pendingRequests: 0,
+    validatedRequests: 0,
+    rejectedRequests: 0,
+    recentRequests: [],
+    statsByType: [],
+    statsByDay: []
   });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/agent-login");
-    }
-  }, [status, router]);
+    fetchStats();
+  }, []);
 
-  useEffect(() => {
-    if (session?.user?.role === "agent") {
-      fetchAgentStats();
-    }
-  }, [session]);
-
-  const fetchAgentStats = async () => {
+  const fetchStats = async () => {
     try {
       const response = await fetch('/api/agent/stats');
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des statistiques');
       }
-      const data = await response.json();
+      const data = await response.json() as Stats;
       setStats(data);
     } catch (error) {
       console.error('Erreur:', error);
@@ -53,80 +76,96 @@ export default function AgentDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/auth/agent-login');
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'en_attente':
+        return <Badge variant="secondary">En attente</Badge>;
+      case 'valide':
+        return <Badge variant="success">Validé</Badge>;
+      case 'rejete':
+        return <Badge variant="destructive">Rejeté</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
-  if (status === "loading") {
-    return <div>Chargement...</div>;
-  }
+  const getDocumentTypeLabel = (type: string) => {
+    const types: { [key: string]: string } = {
+      'birth_declaration': 'Déclaration de naissance',
+      'birth_certificate': 'Acte de naissance',
+      'residence_certificate': 'Certificat de résidence',
+      'marriage_certificate': 'Certificat de mariage',
+      'criminal_record': 'Extrait de casier judiciaire',
+      'id_card': 'Carte d\'identité',
+      'passport': 'Passeport'
+    };
+    return types[type] || type;
+  };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-50 w-full border-b bg-background">
-        <div className="container flex h-16 items-center">
-          <div className="mr-4 flex">
-            <Shield className="h-6 w-6 text-primary" />
-            <span className="ml-2 font-bold">Espace Agent</span>
-          </div>
-          <div className="flex-1"></div>
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Déconnexion
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex-1">
-        <div className="container space-y-4 p-8 pt-6">
+    <AgentLayout>
+      <div className="flex flex-col">
+        <div className="flex-1 space-y-4 p-8 pt-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-2 md:space-y-0">
-            <h2 className="text-3xl font-bold tracking-tight">Tableau de Bord Agent</h2>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground">
-                Connecté en tant que {session?.user?.name}
-              </span>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Tableau de bord</h2>
+              <p className="text-muted-foreground">
+                Vue d'ensemble des demandes de documents
+              </p>
             </div>
+            <Link href="/agent/documents">
+              <Button>Voir toutes les demandes</Button>
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="animation-fadeIn">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Documents en cours</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Demandes totales
+                </CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? "..." : stats.documentsEnCours}</div>
+                <div className="text-2xl font-bold">{isLoading ? "..." : stats.totalRequests}</div>
                 <p className="text-xs text-muted-foreground">
-                  documents en traitement
+                  {isLoading ? "..." : `+${stats.lastMonthRequests} depuis le mois dernier`}
                 </p>
               </CardContent>
             </Card>
-
-            <Card>
+            <Card className="animation-fadeIn" style={{ animationDelay: '100ms' }}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Documents traités</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">En attente</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? "..." : stats.documentsTraites}</div>
+                <div className="text-2xl font-bold">{isLoading ? "..." : stats.pendingRequests}</div>
                 <p className="text-xs text-muted-foreground">
-                  documents complétés
+                  À traiter
                 </p>
               </CardContent>
             </Card>
-
-            <Card>
+            <Card className="animation-fadeIn" style={{ animationDelay: '200ms' }}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Documents en attente</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Validées</CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? "..." : stats.documentsEnAttente}</div>
+                <div className="text-2xl font-bold">{isLoading ? "..." : stats.validatedRequests}</div>
                 <p className="text-xs text-muted-foreground">
-                  documents à traiter
+                  Documents délivrés
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="animation-fadeIn" style={{ animationDelay: '300ms' }}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Rejetées</CardTitle>
+                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{isLoading ? "..." : stats.rejectedRequests}</div>
+                <p className="text-xs text-muted-foreground">
+                  Demandes refusées
                 </p>
               </CardContent>
             </Card>
@@ -135,57 +174,103 @@ export default function AgentDashboard() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <Card className="col-span-4">
               <CardHeader>
-                <CardTitle>Actions rapides</CardTitle>
+                <CardTitle>Demandes récentes</CardTitle>
                 <CardDescription>
-                  Accès rapide aux fonctionnalités principales
+                  Les 5 dernières demandes reçues
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 gap-4">
-                  <Button className="w-full" variant="outline" onClick={() => router.push('/agent/documents')}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Gérer les Documents
-                  </Button>
-                  <Button className="w-full" variant="outline" onClick={() => router.push('/agent/profile')}>
-                    <User className="mr-2 h-4 w-4" />
-                    Mon Profil
-                  </Button>
+                <div className="space-y-4">
+                  {isLoading ? (
+                    <div className="text-center py-4">Chargement...</div>
+                  ) : stats.recentRequests.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      Aucune demande récente
+                    </div>
+                  ) : (
+                    stats.recentRequests.map((request) => (
+                      <div
+                        key={request._id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">
+                              {getDocumentTypeLabel(request.documentType)}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {request.citizenEmail}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          {getStatusBadge(request.status)}
+                          <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/agent/document/${request._id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="col-span-3">
               <CardHeader>
-                <CardTitle>Informations du compte</CardTitle>
+                <CardTitle>Statistiques par type</CardTitle>
                 <CardDescription>
-                  Détails de votre compte agent
+                  Répartition des demandes
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Nom</p>
-                      <p className="text-sm text-muted-foreground">{session?.user?.name}</p>
+                  {isLoading ? (
+                    <div className="text-center py-4">Chargement...</div>
+                  ) : stats.statsByType.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      Aucune donnée disponible
                     </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Documents traités aujourd'hui</p>
-                      <p className="text-sm text-muted-foreground">
-                        {isLoading ? "..." : stats.documentsTraites}
-                      </p>
-                    </div>
-                  </div>
+                  ) : (
+                    stats.statsByType.map((stat) => (
+                      <div
+                        key={stat._id}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">
+                            {getDocumentTypeLabel(stat._id)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {stat.count} demandes
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div className="text-center p-2 bg-muted rounded">
+                            <p className="font-medium">{stat.pending}</p>
+                            <p className="text-xs text-muted-foreground">En attente</p>
+                          </div>
+                          <div className="text-center p-2 bg-muted rounded">
+                            <p className="font-medium">{stat.validated}</p>
+                            <p className="text-xs text-muted-foreground">Validées</p>
+                          </div>
+                          <div className="text-center p-2 bg-muted rounded">
+                            <p className="font-medium">{stat.rejected}</p>
+                            <p className="text-xs text-muted-foreground">Rejetées</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
-    </div>
+    </AgentLayout>
   );
 } 

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { connectToDatabase } from '@/lib/mongodb';
+import { authOptions } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Non autorisé' },
@@ -13,14 +14,6 @@ export async function GET() {
     }
 
     const { db } = await connectToDatabase();
-    const citizen = await db.collection('citizens').findOne({ email: session.user.email });
-
-    if (!citizen) {
-      return NextResponse.json(
-        { error: 'Citoyen non trouvé' },
-        { status: 404 }
-      );
-    }
 
     // Obtenir la date du début du mois dernier
     const lastMonth = new Date();
@@ -56,12 +49,20 @@ export async function GET() {
       status: 'rejete'
     });
 
+    // Récupérer les demandes récentes (5 dernières)
+    const recentRequests = await db.collection('documents')
+      .find({ citizenEmail: session.user.email })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .toArray();
+
     return NextResponse.json({
       totalRequests,
       lastMonthRequests,
       pendingRequests,
       validatedRequests,
-      rejectedRequests
+      rejectedRequests,
+      recentRequests
     });
   } catch (error) {
     console.error('Erreur lors de la récupération des statistiques:', error);

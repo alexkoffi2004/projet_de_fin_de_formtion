@@ -151,19 +151,43 @@ export default function NewDocumentRequest() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
     try {
+      // Créer d'abord la demande de document
       const response = await fetch('/api/citizen/document', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          documentType: values.documentType,
+          reason: values.reason,
+          additionalInfo: values.additionalInfo,
+          urgency: values.urgency,
+        }),
       });
 
       if (!response.ok) {
         throw new Error('Erreur lors de la création de la demande');
       }
 
-      const data = await response.json();
+      const { requestId } = await response.json();
+
+      // Télécharger les fichiers
+      const uploadPromises = values.documents.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('documentId', requestId);
+
+        const uploadResponse = await fetch('/api/citizen/document/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Erreur lors du téléchargement de ${file.name}`);
+        }
+      });
+
+      await Promise.all(uploadPromises);
       
       setShowSuccess(true);
       toast.success("Votre demande a été soumise avec succès");
