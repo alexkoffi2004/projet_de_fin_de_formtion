@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { connectToDatabase } from '@/lib/mongodb';
+import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { nanoid } from 'nanoid';
 
 export async function POST(request: Request) {
   try {
@@ -14,58 +15,64 @@ export async function POST(request: Request) {
       );
     }
 
-    const { db } = await connectToDatabase();
-
-    // Optionnel: Vérifier si le citoyen existe dans la collection 'citizens' si nécessaire
-    // const citizen = await db.collection('citizens').findOne({ email: session.user.email });
-    // if (!citizen) {
-    //   return NextResponse.json(
-    //     { error: 'Citoyen non trouvé' },
-    //     { status: 404 }
-    //   );
-    // }
-
     const body = await request.json();
 
-    // Validation basique des champs requis du formulaire ActeNaissanceForm
+    // Validation des champs requis
     const { fullName, birthDate, birthPlace, fatherFullName, motherFullName, acteNumber, demandeurIdProofUrl, existingActeUrl } = body;
 
     if (!fullName || !birthDate || !birthPlace || (!fatherFullName && !motherFullName) || !demandeurIdProofUrl) {
-       return NextResponse.json(
-         { error: 'Certains champs requis sont manquants : Nom complet, Date et lieu de naissance, au moins un parent (père ou mère), Pièce d\'identité du demandeur.' },
-         { status: 400 }
-       );
+      return NextResponse.json(
+        { error: 'Certains champs requis sont manquants : Nom complet, Date et lieu de naissance, au moins un parent (père ou mère), Pièce d\'identité du demandeur.' },
+        { status: 400 }
+      );
     }
 
-    // Créer le document de demande pour la collection 'documents'
-    const demandeActeNaissance = {
-      citizenEmail: session.user.email, // Lier la demande au citoyen par email
-      documentType: 'birth_certificate', // Type de document
-      status: 'en_attente', // Statut initial
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      // Champs spécifiques à l'acte de naissance
-      details: {
-        fullName: fullName,
-        birthDate: new Date(birthDate), // Stocker comme Date
-        birthPlace: birthPlace,
+    // Récupérer l'ID du citoyen
+    const citizen = await prisma.citizen.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!citizen) {
+      return NextResponse.json(
+        { error: 'Citoyen non trouvé' },
+        { status: 404 }
+      );
+    }
+
+    // Créer la demande d'acte de naissance
+    const birthCertificate = await prisma.birthCertificate.create({
+      data: {
+        citizenId: citizen.id,
+        fullName,
+        birthDate: new Date(birthDate),
+        birthPlace,
         fatherFullName: fatherFullName || null,
         motherFullName: motherFullName || null,
         acteNumber: acteNumber || null,
-        demandeurIdProofUrl: demandeurIdProofUrl,
-        existingActeUrl: existingActeUrl || null,
+        status: 'PENDING',
+        trackingNumber: nanoid(10), // Génère un numéro de suivi unique
+        files: {
+          create: [
+            {
+              type: 'id_proof',
+              url: demandeurIdProofUrl
+            },
+            ...(existingActeUrl ? [{
+              type: 'existing_acte',
+              url: existingActeUrl
+            }] : [])
+          ]
+        }
       },
-       // Vous pouvez ajouter d'autres champs communs ici si besoin (ex: raison, urgence)
-       // reason: body.reason, 
-       // urgency: body.urgency,
-    };
-
-    // Insérer la demande dans la collection 'documents'
-    const result = await db.collection('documents').insertOne(demandeActeNaissance);
+      include: {
+        files: true
+      }
+    });
 
     return NextResponse.json({
       message: 'Demande d\'acte de naissance créée avec succès',
-      requestId: result.insertedId,
+      requestId: birthCertificate.id,
+      trackingNumber: birthCertificate.trackingNumber
     }, { status: 201 });
 
   } catch (error) {

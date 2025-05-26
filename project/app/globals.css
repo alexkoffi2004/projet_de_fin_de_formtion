@@ -4,6 +4,33 @@
 
 @import '~antd/dist/reset.css';
 
+/* Remplacer -ms-high-contrast par le nouveau standard */
+@media (forced-colors: active) {
+  /* Styles pour le mode de contraste élevé */
+  .ant-btn {
+    border: 1px solid ButtonText;
+    color: ButtonText;
+    background-color: ButtonFace;
+  }
+
+  .ant-card {
+    border: 1px solid CanvasText;
+    background-color: Canvas;
+  }
+
+  .ant-upload {
+    border: 1px solid ButtonText;
+  }
+
+  .ant-upload-list-item {
+    border: 1px solid ButtonText;
+  }
+
+  a {
+    color: LinkText;
+  }
+}
+
 /* Styles de base */
 :root {
   --foreground-rgb: 0, 0, 0;

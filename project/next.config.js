@@ -5,11 +5,17 @@ const nextConfig = {
   },
   images: { 
     unoptimized: true,
-    domains: ['images.pexels.com'],
+    domains: ['images.pexels.com', 'res.cloudinary.com'],
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'images.pexels.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
         port: '',
         pathname: '/**',
       },

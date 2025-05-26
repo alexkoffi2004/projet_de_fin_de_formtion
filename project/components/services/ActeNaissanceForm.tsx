@@ -2,33 +2,51 @@
 
 import React, { useState } from 'react';
 import { Steps, Button, Form, Input, DatePicker, Upload, message, Card, Typography, Space, Alert } from 'antd';
-import type { StepsProps, FormInstance, UploadProps } from 'antd';
+import type { StepsProps, FormInstance, UploadProps, UploadFile } from 'antd';
 import { UploadOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { jsPDF } from 'jspdf'; // Potentiellement utile plus tard pour le reçu
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import dayjs from 'dayjs'; // Pour gérer les dates avec DatePicker
+import FileUpload from '../FileUpload'; // Implied import for FileUpload component
 
 const { Step } = Steps;
 const { Title, Text } = Typography;
 
 interface ActeNaissanceFormValues {
   fullName: string;
-  birthDate: string;
+  birthDate: string | null;
   birthPlace: string;
-  fatherFullName?: string;
-  motherFullName?: string;
-  acteNumber?: string;
-  existingActe?: any; // Pour le fichier téléchargé
-  demandeurIdProof: any; // Pour la pièce d'identité du demandeur
+  fatherFullName: string;
+  motherFullName: string;
+  acteNumber: string;
+  existingActe: {
+    fileList: UploadFile<any>[];
+  } | null;
+  demandeurIdProof: {
+    fileList: UploadFile<any>[];
+  } | null;
 }
 
 const ActeNaissanceForm: React.FC = () => {
   const [form] = Form.useForm<ActeNaissanceFormValues>();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<ActeNaissanceFormValues>({
+    fullName: '',
+    birthDate: null,
+    birthPlace: '',
+    fatherFullName: '',
+    motherFullName: '',
+    acteNumber: '',
+    existingActe: null,
+    demandeurIdProof: null,
+  });
   const router = useRouter();
   const { data: session, status } = useSession();
+
+  // Ajouter un état pour suivre le statut des fichiers
+  const [idProofStatus, setIdProofStatus] = useState<'uploading' | 'done' | 'error' | null>(null);
 
   // Rediriger si non authentifié
   React.useEffect(() => {
@@ -39,87 +57,55 @@ const ActeNaissanceForm: React.FC = () => {
     }
   }, [status, router]);
 
-  // Configuration de l'upload pour la pièce d'identité
-  const idProofUploadProps: UploadProps = {
-    name: 'file',
-    action: '/api/citizen/document/upload', // Endpoint à créer ou modifier
-    headers: { authorization: 'Bearer ' + session?.accessToken }, // Adapter selon votre auth
-    onChange(info) {
-      if (info.file.status !== 'uploading') {
-        console.log(info.file, info.fileList);
-      }
-      if (info.file.status === 'done') {
-        message.success(`${info.file.name} fichier téléchargé avec succès.`);
-        form.setFieldsValue({ demandeurIdProof: info.file });
-      } else if (info.file.status === 'error') {
-        message.error(`${info.file.name} échec du téléchargement du fichier.`);
-      }
-    },
-    beforeUpload(file) {
-        const isLt2M = file.size / 1024 / 1024 < 2; // Limite de 2MB
-        if (!isLt2M) {
-          message.error('Le fichier doit être inférieur à 2MB!');
-        }
-        return isLt2M;
-      },
-    maxCount: 1,
+  const handleIdProofUploadSuccess = (fileData: any) => {
+    console.log('Pièce d\'identité uploadée avec succès:', fileData);
+    setIdProofStatus('done');
   };
 
-   // Configuration de l'upload pour l'ancien acte (optionnel)
-   const existingActeUploadProps: UploadProps = {
-    name: 'file',
-    action: '/api/citizen/document/upload', // Endpoint à créer ou modifier
-    headers: { authorization: 'Bearer ' + session?.accessToken }, // Adapter selon votre auth
-    onChange(info) {
-      if (info.file.status !== 'uploading') {
-        console.log(info.file, info.fileList);
-      }
-      if (info.file.status === 'done') {
-        message.success(`${info.file.name} fichier téléchargé avec succès.`);
-        form.setFieldsValue({ existingActe: info.file });
-      } else if (info.file.status === 'error') {
-        message.error(`${info.file.name} échec du téléchargement du fichier.`);
-      }
-    },
-    beforeUpload(file) {
-        const isLt2M = file.size / 1024 / 1024 < 2; // Limite de 2MB
-        if (!isLt2M) {
-          message.error('Le fichier doit être inférieur à 2MB!');
-        }
-        return isLt2M;
-      },
-    maxCount: 1,
+  const handleIdProofUploadError = (error: any) => {
+    console.error('Erreur lors de l\'upload de la pièce d\'identité:', error);
+    setIdProofStatus('error');
+  };
+
+  // Fonction pour mettre à jour les données du formulaire
+  const updateFormData = (values: Partial<ActeNaissanceFormValues>) => {
+    setFormData(prev => ({ ...prev, ...values }));
   };
 
   const handleConfirm = async () => {
     try {
       setLoading(true);
 
-      // Valider et récupérer les valeurs du formulaire
-      const values = await form.validateFields();
-      console.log('Form values before submission:', values);
+      // Utiliser les données stockées dans l'état
+      console.log('Form data from state:', formData);
+
+      // Vérification détaillée de chaque champ requis
+      const missingFields = [];
+      if (!formData.fullName) missingFields.push('Nom complet');
+      if (!formData.birthDate) missingFields.push('Date de naissance');
+      if (!formData.birthPlace) missingFields.push('Lieu de naissance');
+      if (!formData.fatherFullName && !formData.motherFullName) missingFields.push('Nom du père ou de la mère');
+      if (idProofStatus !== 'done') missingFields.push('Pièce d\'identité');
+
+      if (missingFields.length > 0) {
+        throw new Error(`Champs manquants : ${missingFields.join(', ')}`);
+      }
 
       // Préparer les données pour l'API
       const data = {
-        documentType: 'birth_certificate', // Type spécifique
-        fullName: values.fullName,
-        birthDate: values.birthDate ? dayjs(values.birthDate).toISOString() : null,
-        birthPlace: values.birthPlace,
-        fatherFullName: values.fatherFullName,
-        motherFullName: values.motherFullName,
-        acteNumber: values.acteNumber,
-        // Les fichiers ont été gérés par l'endpoint d'upload séparément.
-        // Nous envoyons ici les URLs obtenues après l'upload réussi.
-        demandeurIdProofUrl: values.demandeurIdProof?.response?.url || values.demandeurIdProof?.url,
-        existingActeUrl: values.existingActe?.response?.url || values.existingActe?.url || null,
-        // Vous pourriez ajouter ici d'autres champs communs comme reason ou urgency si votre formulaire les inclut
-        // reason: form.getFieldValue('reason'), // Exemple si vous ajoutez ces champs au formulaire
-        // urgency: form.getFieldValue('urgency'), // Exemple
+        fullName: formData.fullName,
+        birthDate: formData.birthDate ? dayjs(formData.birthDate).toISOString() : null,
+        birthPlace: formData.birthPlace,
+        fatherFullName: formData.fatherFullName || null,
+        motherFullName: formData.motherFullName || null,
+        acteNumber: formData.acteNumber || null,
+        demandeurIdProofUrl: formData.demandeurIdProof?.fileList?.[0]?.response?.url || formData.demandeurIdProof?.fileList?.[0]?.url,
+        existingActeUrl: formData.existingActe?.fileList?.[0]?.response?.url || formData.existingActe?.fileList?.[0]?.url || null,
       };
 
-      console.log('Data being sent to API:', data);
+      console.log('Données envoyées à l\'API:', data);
 
-      // Appel au NOUVEL endpoint API spécifique pour la demande d'acte de naissance
+      // Appel à l'API
       const response = await fetch('/api/citizen/request/birth-certificate', {
         method: 'POST',
         headers: {
@@ -129,28 +115,21 @@ const ActeNaissanceForm: React.FC = () => {
       });
 
       const responseData = await response.json();
-      console.log('API Response:', responseData);
+      console.log('Réponse de l\'API:', responseData);
 
       if (!response.ok) {
-        // Utiliser le message d'erreur de l'API si disponible
         throw new Error(responseData.error || 'Erreur lors de la soumission de la demande d\'acte de naissance');
       }
 
-      // Le nouvel endpoint renvoie { message, requestId }
-      if (responseData.requestId) { // Vérifier si l'ID de la demande a été retourné
+      if (responseData.requestId) {
         message.success('Votre demande d\'acte de naissance a été soumise avec succès !');
-        
-        // TODO: Intégrer l'étape de paiement en utilisant responseData.requestId
-        // Pour l'instant, redirigeons vers les demandes
-        router.push('/citizen/documents'); 
-
+        router.push('/citizen/documents');
       } else {
-        // Gérer les cas où l'API réussit mais ne renvoie pas l'ID attendu
         throw new Error(responseData.message || 'Erreur inattendue lors de la soumission (pas d\'ID de demande)');
       }
 
-    } catch (error: any) { // Caster en any pour accéder à message
-      console.error('Error submitting request:', error);
+    } catch (error: any) {
+      console.error('Erreur lors de la soumission:', error);
       message.error(error.message || 'Une erreur est survenue lors de la soumission de la demande');
     } finally {
       setLoading(false);
@@ -159,59 +138,35 @@ const ActeNaissanceForm: React.FC = () => {
 
   const next = async () => {
     try {
-      // Valider uniquement les champs de l'étape courante
-      let fieldsToValidate: (keyof ActeNaissanceFormValues)[];
+      let fieldsToValidate: (keyof ActeNaissanceFormValues)[] = [];
+      
       if (currentStep === 0) {
         fieldsToValidate = ['fullName', 'birthDate', 'birthPlace'];
       } else if (currentStep === 1) {
-        // Au moins un des deux parents doit être renseigné
-         const { fatherFullName, motherFullName } = form.getFieldsValue();
-         if (!fatherFullName && !motherFullName) {
-             form.setFields({
-                 fatherFullName: { errors: [new Error('Veuillez entrer le nom du père ou de la mère')] },
-                 motherFullName: { errors: [new Error('Veuillez entrer le nom du père ou de la mère')] },
-             });
-             return;
-         }
-         fieldsToValidate = ['fatherFullName', 'motherFullName']; // La validation logique est ci-dessus
-
+        fieldsToValidate = ['fatherFullName', 'motherFullName'];
       } else if (currentStep === 2) {
-        // Numéro d'acte OU fichier existant
-        const { acteNumber, existingActe } = form.getFieldsValue();
-        if (!acteNumber && (!existingActe || existingActe.fileList.length === 0 || existingActe.file.status !== 'done')) {
-            form.setFields({
-                acteNumber: { errors: [new Error('Veuillez entrer le numéro de l\'acte OU télécharger un extrait existant')] },
-                existingActe: { errors: [new Error('Veuillez entrer le numéro de l\'acte OU télécharger un extrait existant')] },
-            });
-            return;
+        // Vérification des documents
+        if (idProofStatus !== 'done') {
+          form.setFields([
+            {
+              name: 'demandeurIdProof',
+              errors: ['Veuillez joindre une pièce d\'identité']
+            }
+          ]);
+          return;
         }
-        // Pièce d'identité est requise
-        const { demandeurIdProof } = form.getFieldsValue();
-         if (!demandeurIdProof || demandeurIdProof.fileList.length === 0 || demandeurIdProof.file.status !== 'done') {
-            form.setFields({
-                demandeurIdProof: { errors: [new Error('Veuillez joindre une pièce d\'identité')] },
-            });
-            return;
-         }
-        fieldsToValidate = ['acteNumber', 'existingActe', 'demandeurIdProof']; // La validation logique est ci-dessus
       }
-       else {
-           fieldsToValidate = []; // Confirmation step
-       }
 
-      // Exclure les champs vides de la validation si ce ne sont pas des champs requis de l'étape
-      const valuesToValidate = form.getFieldsValue(fieldsToValidate);
-      await form.validateFields(Object.keys(valuesToValidate));
-
-      const currentValues = form.getFieldsValue();
-      console.log('Current step values:', currentValues);
-
+      // Valider les champs de l'étape actuelle
+      const values = await form.validateFields(fieldsToValidate);
+      updateFormData(values);
+      
+      // Passer à l'étape suivante
       setCurrentStep(currentStep + 1);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Validation error:', error);
-      // Ant Design message.error affichera déjà le message par défaut des règles
       if (!error.errorFields || error.errorFields.length === 0) {
-         message.error('Veuillez remplir correctement les champs de l\'étape actuelle.');
+        message.error('Veuillez remplir correctement les champs de l\'étape actuelle.');
       }
     }
   };
@@ -278,11 +233,11 @@ const ActeNaissanceForm: React.FC = () => {
       title: "Documents et numéro d'acte",
       content: (
         <>
-           <Text type="secondary">Veuillez renseigner le numéro de l'acte OU télécharger un extrait existant.</Text>
+          <Text type="secondary">Veuillez renseigner le numéro de l'acte OU télécharger un extrait existant.</Text>
           <Form.Item
             name="acteNumber"
             label="Numéro de l'acte (si connu)"
-            rules={[{ required: false }]} // La validation logique est dans next()
+            rules={[{ required: false }]}
           >
             <Input placeholder="Ex: 123456" />
           </Form.Item>
@@ -290,29 +245,44 @@ const ActeNaissanceForm: React.FC = () => {
           <Form.Item
             name="existingActe"
             label="Ou télécharger un extrait existant (optionnel)"
-             rules={[{ required: false }]} // La validation logique est dans next()
+            rules={[{ required: false }]}
+            valuePropName="fileList"
+            getValueFromEvent={(e) => {
+              if (Array.isArray(e)) {
+                return e;
+              }
+              return e?.fileList;
+            }}
           >
-             <Upload {...existingActeUploadProps}>
-                <Button icon={<UploadOutlined />}>Sélectionner le fichier</Button>
-             </Upload>
+            <FileUpload
+              documentType="existing_acte"
+              maxCount={1}
+              accept=".pdf,.jpg,.jpeg,.png"
+            />
           </Form.Item>
 
-           <Text type="secondary" className="mt-4 block"><InfoCircleOutlined /> Une pièce d'identité du demandeur est requise.</Text>
-           <Form.Item
+          <Text type="secondary" className="mt-4 block">
+            <InfoCircleOutlined /> Une pièce d'identité du demandeur est requise.
+          </Text>
+          <Form.Item
             name="demandeurIdProof"
             label="Pièce d'identité du demandeur"
             rules={[{ required: true, message: 'Veuillez joindre une pièce d\'identité' }]}
-            valuePropName="fileList" // Pour que Form.Item gère l'objet fileList d'Upload
+            valuePropName="fileList"
             getValueFromEvent={(e) => {
-                if (Array.isArray(e)) {
-                  return e;
-                }
-                return e?.fileList;
-              }}
+              if (Array.isArray(e)) {
+                return e;
+              }
+              return e?.fileList;
+            }}
           >
-             <Upload {...idProofUploadProps}>
-                <Button icon={<UploadOutlined />}>Télécharger la pièce d'identité</Button>
-             </Upload>
+            <FileUpload
+              documentType="id_proof"
+              maxCount={1}
+              accept=".pdf,.jpg,.jpeg,.png"
+              onUploadSuccess={handleIdProofUploadSuccess}
+              onUploadError={handleIdProofUploadError}
+            />
           </Form.Item>
         </>
       ),
@@ -347,28 +317,28 @@ const ActeNaissanceForm: React.FC = () => {
         <>
           <Title level={4}>Résumé de la demande</Title>
           <Form.Item label="Nom complet de la personne concernée">
-            <Text>{form.getFieldValue('fullName')}</Text>
+            <Text>{formData.fullName || 'Non renseigné'}</Text>
           </Form.Item>
           <Form.Item label="Date de naissance">
-            <Text>{form.getFieldValue('birthDate') ? dayjs(form.getFieldValue('birthDate')).format('DD/MM/YYYY') : ''}</Text>
+            <Text>{formData.birthDate ? dayjs(formData.birthDate).format('DD/MM/YYYY') : 'Non renseigné'}</Text>
           </Form.Item>
           <Form.Item label="Lieu de naissance">
-            <Text>{form.getFieldValue('birthPlace')}</Text>
+            <Text>{formData.birthPlace || 'Non renseigné'}</Text>
           </Form.Item>
-           <Form.Item label="Nom complet du père">
-            <Text>{form.getFieldValue('fatherFullName') || 'Non renseigné'}</Text>
+          <Form.Item label="Nom complet du père">
+            <Text>{formData.fatherFullName || 'Non renseigné'}</Text>
           </Form.Item>
-           <Form.Item label="Nom complet de la mère">
-            <Text>{form.getFieldValue('motherFullName') || 'Non renseigné'}</Text>
+          <Form.Item label="Nom complet de la mère">
+            <Text>{formData.motherFullName || 'Non renseigné'}</Text>
           </Form.Item>
           <Form.Item label="Numéro de l'acte (si connu)">
-            <Text>{form.getFieldValue('acteNumber') || 'Non renseigné'}</Text>
+            <Text>{formData.acteNumber || 'Non renseigné'}</Text>
           </Form.Item>
-           <Form.Item label="Extrait existant téléchargé">
-            <Text>{form.getFieldValue('existingActe') ? form.getFieldValue('existingActe').file?.name || 'Oui' : 'Non'}</Text>
+          <Form.Item label="Extrait existant téléchargé">
+            <Text>{formData.existingActe?.fileList?.[0]?.name || 'Non'}</Text>
           </Form.Item>
-           <Form.Item label="Pièce d'identité du demandeur téléchargée">
-            <Text>{form.getFieldValue('demandeurIdProof') ? form.getFieldValue('demandeurIdProof').file?.name || 'Oui' : 'Non'}</Text>
+          <Form.Item label="Pièce d'identité du demandeur téléchargée">
+            <Text>{idProofStatus === 'done' ? 'Oui' : 'Non'}</Text>
           </Form.Item>
         </>
       ),
@@ -387,24 +357,9 @@ const ActeNaissanceForm: React.FC = () => {
           form={form} 
           layout="vertical"
           preserve={true}
-          initialValues={{
-            childFirstName: '', // Ces champs ne sont plus pertinents pour l'acte de naissance
-            childLastName: '',
-            childGender: undefined,
-            birthDate: null,
-            birthPlace: '',
-            fatherFirstName: '',
-            fatherLastName: '',
-            motherFirstName: '',
-            motherLastName: '',
-            documents: [],
-             // Champs spécifiques à l'acte de naissance
-            fullName: '',
-            fatherFullName: '',
-            motherFullName: '',
-            acteNumber: '',
-            existingActe: undefined,
-            demandeurIdProof: undefined,
+          initialValues={formData}
+          onValuesChange={(changedValues) => {
+            updateFormData(changedValues);
           }}
         >
           {/* Render current step content */}
@@ -412,7 +367,7 @@ const ActeNaissanceForm: React.FC = () => {
 
           <div className="steps-action mt-8">
             {currentStep < steps.length - 1 && (
-              <Button type="primary" onClick={() => next()} loading={loading}>
+              <Button type="primary" onClick={next} loading={loading}>
                 Suivant
               </Button>
             )}

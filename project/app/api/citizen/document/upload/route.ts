@@ -5,14 +5,14 @@ import { authOptions } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
 import { v2 as cloudinary } from 'cloudinary';
 import { Document } from '@/types/mongodb';
-import type { UploadApiOptions } from 'cloudinary';
+import type { UploadApiOptions, UploadApiResponse } from 'cloudinary';
 
-// Configurer Cloudinary (utilisez vos propres variables d'environnement)
+// Configuration de Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true // Utiliser HTTPS
+  secure: true
 });
 
 export async function POST(request: Request) {
@@ -26,117 +26,81 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as File | null; // Le nom 'file' doit correspondre au nom dans le formulaire Upload
-    const documentId = formData.get('documentId') as string | null; // L'ID de la demande à associer
+    const file = formData.get('file') as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: 'Aucun fichier trouvé dans la requête' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Aucun fichier trouvé dans la requête' },
+        { status: 400 }
+      );
     }
 
-     if (!documentId) {
-        return NextResponse.json(
-          { error: 'ID de la demande manquant pour l\'upload du fichier' },
-          { status: 400 }
-        );
-     }
+    // Vérification de la taille du fichier (2MB max)
+    const maxSize = 2 * 1024 * 1024; // 2MB en bytes
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: 'Le fichier est trop volumineux. Taille maximale: 2MB' },
+        { status: 400 }
+      );
+    }
 
     const { db } = await connectToDatabase();
     
-    // Vérifier que le document existe et appartient bien au citoyen
-     let documentObjectId;
-     try {
-        documentObjectId = new ObjectId(documentId);
-     } catch (e) {
-         return NextResponse.json({ error: 'ID de document invalide' }, { status: 400 });
-     }
-
-    const document = await db.collection<Document>('documents').findOne({
-      _id: documentObjectId,
-      citizenEmail: session.user.email
-    });
-
-    if (!document) {
-      return NextResponse.json(
-        { error: 'Document non trouvé ou accès refusé' },
-        { status: 404 }
-      );
-    }
-
-    // Lire le contenu du fichier et le convertir en Buffer
+    // Lecture du fichier et conversion en Buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Convertir le buffer en string base64 pour l'upload vers Cloudinary
-    const base64File = buffer.toString('base64');
-    const dataUri = `data:${file.type};base66,${base64File}`;
-
     // Options d'upload pour Cloudinary
     const uploadOptions: UploadApiOptions = {
-        folder: `citizen-documents/${documentId}`, // Organiser les uploads par ID de document
-        resource_type: 'auto', // Utiliser le type littéral 'auto'
-        public_id: `${documentId}_${Date.now()}_${file.name.replace(/\s+/g, '_')}`, // Nom public unique
-        // Autres options si nécessaire (ex: tags, qualité, transformation)
+      folder: `citizen-documents/${session.user.email}`,
+      resource_type: 'auto',
+      public_id: `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`,
+      overwrite: false,
+      invalidate: true
     };
 
-    // Upload du fichier vers Cloudinary
-    const cloudinaryResponse = await cloudinary.uploader.upload(dataUri, uploadOptions);
-
-    console.log('Cloudinary Upload Response:', cloudinaryResponse);
-
-    if (!cloudinaryResponse || !cloudinaryResponse.secure_url) {
-        console.error('Échec de l\'upload vers Cloudinary', cloudinaryResponse);
-         return NextResponse.json(
-           { error: 'Échec de l\'upload du fichier vers le service de stockage' },
-           { status: 500 }
-         );
-    }
-
-    const fileUrl = cloudinaryResponse.secure_url; // URL sécurisée du fichier sur Cloudinary
-    const publicId = cloudinaryResponse.public_id; // ID public du fichier sur Cloudinary
-
-    // Mettre à jour le document dans la base de données avec l'information du fichier Cloudinary
-    try {
-
-      const updateResult = await db.collection<Document>('documents').updateOne(
-        { _id: documentObjectId },
-        { 
-          $push: { 
-            files: {
-              name: file.name,
-              url: fileUrl,
-              publicId: publicId,
-              uploadedAt: new Date() 
-            }
+    // Upload vers Cloudinary avec gestion d'erreur améliorée
+    const cloudinaryResponse = await new Promise<UploadApiResponse>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) {
+            console.error('Erreur Cloudinary:', error);
+            reject(error);
+          } else if (result) {
+            resolve(result);
+          } else {
+            reject(new Error('Résultat Cloudinary indéfini'));
           }
         }
-      );
+      ).end(buffer);
+    });
 
-      if (updateResult.matchedCount === 0) {
-        console.warn(`Document avec ID ${documentId} non trouvé lors de la mise à jour après upload Cloudinary.`);
-         // Le fichier est sur Cloudinary, mais la liaison DB a échoué. Peut nécessiter un nettoyage sur Cloudinary ou une gestion d'erreur.
-      }
-
-    } catch (dbError) {
-      console.error('Erreur lors de la mise à jour du document en base de données après upload Cloudinary:', dbError);
-       // Le fichier est sur Cloudinary, mais la mise à jour DB a échoué. Gérer cette erreur.
-         return NextResponse.json(
-           { error: 'Fichier uploadé mais erreur lors de la liaison à la demande en base de données' },
-           { status: 500 }
-         );
+    if (!cloudinaryResponse.secure_url) {
+      throw new Error('Échec de l\'upload vers Cloudinary');
     }
 
-    // Retourner une réponse de succès
+    // Retourner la réponse avec les informations du fichier
     return NextResponse.json({
-      message: 'Fichier téléchargé et lié avec succès',
-      fileName: file.name,
-      fileUrl: fileUrl, // Renvoyer l'URL Cloudinary
-      publicId: publicId
+      success: true,
+      message: 'Fichier téléchargé avec succès',
+      data: {
+        fileName: file.name,
+        fileUrl: cloudinaryResponse.secure_url,
+        publicId: cloudinaryResponse.public_id,
+        fileType: file.type,
+        size: file.size
+      }
     }, { status: 200 });
 
-  } catch (error: any) { // Spécifier any ou unknown et vérifier le type
-    console.error('Erreur générale lors du traitement de l\'upload Cloudinary:', error);
+  } catch (error: any) {
+    console.error('Erreur lors du traitement de l\'upload:', error);
     return NextResponse.json(
-      { error: 'Une erreur est survenue lors du traitement de l\'upload du fichier', details: error.message },
+      {
+        success: false,
+        error: 'Une erreur est survenue lors du traitement de l\'upload du fichier',
+        details: error.message
+      },
       { status: 500 }
     );
   }
