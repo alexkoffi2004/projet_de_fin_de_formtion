@@ -8,9 +8,12 @@ import { authOptions } from '@/lib/auth';
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
+    console.log('Session:', session);
+
     if (!session?.user?.email) {
+      console.log('Pas de session ou email manquant');
       return NextResponse.json(
-        { error: 'Non autorisé' },
+        { error: 'Vous devez être connecté pour accéder à cette ressource' },
         { status: 401 }
       );
     }
@@ -18,10 +21,13 @@ export async function GET(request: Request) {
     const { db } = await connectToDatabase();
 
     // Vérifier si l'utilisateur est un agent
-    const agent = await db.collection('agents').findOne({ email: session.user.email });
+    const agent = await db.collection('Agent').findOne({ email: session.user.email });
+    console.log('Agent trouvé:', agent);
+
     if (!agent) {
+      console.log('Utilisateur non trouvé ou non agent');
       return NextResponse.json(
-        { error: 'Accès non autorisé' },
+        { error: 'Vous devez être un agent pour accéder à cette ressource' },
         { status: 403 }
       );
     }
@@ -61,34 +67,18 @@ export async function GET(request: Request) {
 
       return NextResponse.json(documentWithCitizen);
     } else {
-      // Récupérer toutes les demandes avec pagination et tri
+      // Récupérer les documents associés à l'agent
       const documents = await db.collection('documents')
-        .find()
-        .sort({ createdAt: -1 }) // Trier par date de création décroissante
+        .find({ agentId: agent._id })
         .toArray();
 
-      // Transformer les données pour inclure les informations nécessaires
-      const formattedDocuments = documents.map(doc => ({
-        _id: doc._id,
-        documentType: doc.documentType,
-        status: doc.status,
-        createdAt: doc.createdAt,
-        citizenEmail: doc.citizenEmail,
-        reason: doc.reason,
-        additionalInfo: doc.additionalInfo,
-        urgency: doc.urgency,
-        files: doc.files || [],
-        validationDate: doc.validationDate,
-        rejectionReason: doc.rejectionReason,
-        validatedBy: doc.validatedBy
-      }));
-
-      return NextResponse.json(formattedDocuments);
+      console.log('Nombre de documents trouvés:', documents.length);
+      return NextResponse.json(documents);
     }
   } catch (error) {
-    console.error('Erreur lors de la récupération des demandes:', error);
+    console.error('Erreur détaillée lors de la récupération des documents:', error);
     return NextResponse.json(
-      { error: 'Erreur lors de la récupération des demandes' },
+      { error: 'Une erreur est survenue lors de la récupération des documents' },
       { status: 500 }
     );
   }

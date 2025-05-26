@@ -22,19 +22,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CitizenLayout } from "@/components/layouts/citizen-layout";
 import { toast } from "sonner";
 
+interface DocumentFile {
+  id: string;
+  type: string;
+  url: string;
+}
+
+interface CitizenRequest {
+  _id: string;
+  documentType: string;
+  status: string;
+  createdAt: string;
+  trackingNumber?: string;
+  files?: DocumentFile[];
+}
+
 interface Stats {
   totalRequests: number;
   lastMonthRequests: number;
   pendingRequests: number;
   validatedRequests: number;
   rejectedRequests: number;
-  recentRequests: Array<{
-    _id: string;
-    documentType: string;
-    status: string;
-    createdAt: string;
-    documentUrl?: string;
-  }>;
+  recentRequests: CitizenRequest[];
 }
 
 export default function CitizenDashboard() {
@@ -239,25 +248,41 @@ export default function CitizenDashboard() {
                             <p className="font-medium">
                               {getDocumentTypeLabel(request.documentType)}
                             </p>
+                            {request.trackingNumber && (
+                              <p className="text-sm text-muted-foreground">
+                                N° suivi: {request.trackingNumber}
+                              </p>
+                            )}
                             <p className="text-sm text-muted-foreground">
-                              {new Date(request.createdAt).toLocaleDateString()}
+                              Demandé le: {new Date(request.createdAt).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center space-x-4">
                           {getStatusBadge(request.status)}
-                          {request.status === 'valide' && request.documentUrl && (
-                            <Button variant="ghost" size="icon" asChild>
-                              <Link href={request.documentUrl}>
-                                <Download className="h-4 w-4" />
-                              </Link>
-                            </Button>
+                          {request.status === 'valide' && request.files && request.files.length > 0 && (
+                            (() => {
+                              const finalDocument = request.files.find(file => file.type === 'acte_naissance_final');
+                              if (finalDocument) {
+                                return (
+                                  <Button variant="ghost" size="icon" asChild>
+                                    <a href={finalDocument.url} target="_blank" rel="noopener noreferrer">
+                                      <Download className="h-5 w-5" />
+                                    </a>
+                                  </Button>
+                                );
+                              } else {
+                                return <p className="text-sm text-yellow-600">Doc final non trouvé</p>;
+                              }
+                            })()
                           )}
-                          <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/citizen/document/${request._id}`}>
-                              <Eye className="h-4 w-4" />
+                          {request.status !== 'valide' && (
+                            <Link href={`/citizen/request/${request._id}`}>
+                              <Button variant="ghost" size="icon">
+                                <Eye className="h-5 w-5" />
+                              </Button>
                             </Link>
-                          </Button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -301,12 +326,21 @@ export default function CitizenDashboard() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {getStatusLabel(request.status)}
                         </p>
-                        {request.status === 'valide' && request.documentUrl && (
-                          <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
-                            <Link href={request.documentUrl}>
-                              Télécharger le document
-                            </Link>
-                          </Button>
+                        {request.status === 'valide' && request.files && request.files.length > 0 && (
+                          (() => {
+                            const finalDocument = request.files.find(file => file.type === 'acte_naissance_final');
+                            if (finalDocument) {
+                              return (
+                                <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
+                                  <Link href={finalDocument.url}>
+                                    Télécharger le document
+                                  </Link>
+                                </Button>
+                              );
+                            } else {
+                              return <p className="text-sm text-yellow-600">Doc final non trouvé</p>;
+                            }
+                          })()
                         )}
                       </div>
                     </div>

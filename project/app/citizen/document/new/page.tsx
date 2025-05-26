@@ -38,6 +38,7 @@ import { CitizenLayout } from "@/components/layouts/citizen-layout";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import BirthDeclaration from "@/components/services/BirthDeclaration";
+import ActeNaissanceForm from "@/components/services/ActeNaissanceForm";
 
 // Schéma de validation avec Zod
 const formSchema = z.object({
@@ -69,7 +70,8 @@ const documentTypes = [
     id: "birth_certificate", 
     label: "Acte de naissance", 
     description: "Obtenir une copie d'acte de naissance",
-    icon: FileText
+    icon: FileText,
+    component: ActeNaissanceForm
   },
   { 
     id: "residence_certificate", 

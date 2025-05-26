@@ -57,10 +57,12 @@ model BirthDeclaration {
 
 model Document {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  birthDeclarationId String  @db.ObjectId
-  birthDeclaration  BirthDeclaration @relation(fields: [birthDeclarationId], references: [id])
+  birthDeclarationId String? @db.ObjectId
+  birthDeclaration  BirthDeclaration? @relation(fields: [birthDeclarationId], references: [id])
   type             String
   url              String
+  birthCertificateId String? @db.ObjectId
+  birthCertificate  BirthCertificate? @relation(fields: [birthCertificateId], references: [id])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -85,6 +87,7 @@ model Citizen {
   updatedAt      DateTime  @updatedAt
   requests       Request[]
   birthDeclarations BirthDeclaration[]
+  birthCertificates BirthCertificate[]
 }
 
 model Agent {
@@ -95,6 +98,7 @@ model Agent {
   lastName         String
   role             String   @default("agent")
   birthDeclarations BirthDeclaration[]
+  birthCertificates BirthCertificate[]
   requests         Request[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -108,4 +112,24 @@ model Admin {
   role           String    @default("admin")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+model BirthCertificate {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  citizenId       String   @db.ObjectId
+  citizen         Citizen  @relation(fields: [citizenId], references: [id])
+  fullName        String
+  birthDate       DateTime
+  birthPlace      String
+  fatherFullName  String?
+  motherFullName  String?
+  acteNumber      String?
+  status          String   @default("PENDING")
+  trackingNumber  String   @unique
+  comment         String?
+  files           Document[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  agent           Agent?   @relation(fields: [agentId], references: [id])
+  agentId         String?  @db.ObjectId
 } 
