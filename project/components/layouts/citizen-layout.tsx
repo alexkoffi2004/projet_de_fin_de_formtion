@@ -7,12 +7,20 @@ import { UserNav } from "@/components/user-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
 
 interface CitizenLayoutProps {
   children: React.ReactNode;
 }
 
+interface Notification {
+  id: string;
+  status: string;
+}
+
 export function CitizenLayout({ children }: CitizenLayoutProps) {
+  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
   
   const routes = [
@@ -60,6 +68,26 @@ export function CitizenLayout({ children }: CitizenLayoutProps) {
     },
   ];
 
+  useEffect(() => {
+    fetchUnreadCount();
+    // Mettre à jour le compteur toutes les 30 secondes
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await fetch('/api/citizen/notifications');
+      if (!response.ok) return;
+      
+      const notifications: Notification[] = await response.json();
+      const unread = notifications.filter(n => n.status === "UNREAD").length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des notifications:', error);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background">
@@ -76,9 +104,14 @@ export function CitizenLayout({ children }: CitizenLayoutProps) {
             <Link href="/citizen/notifications">
               <Button variant="outline" size="icon" className="relative rounded-full">
                 <Bell className="h-4 w-4" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
-                  3
-                </span>
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center p-0"
+                  >
+                    {unreadCount}
+                  </Badge>
+                )}
               </Button>
             </Link>
             <ThemeToggle />

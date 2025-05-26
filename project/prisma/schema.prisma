@@ -77,6 +77,19 @@ model Payment {
   updatedAt        DateTime @updatedAt
 }
 
+model Notification {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  citizenId   String   @db.ObjectId
+  citizen     Citizen  @relation(fields: [citizenId], references: [id])
+  title       String
+  message     String
+  type        String   // "BIRTH_CERTIFICATE", "BIRTH_DECLARATION", etc.
+  status      String   @default("UNREAD") // "UNREAD", "READ"
+  referenceId String?  @db.ObjectId // ID de la demande concernée
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Citizen {
   id             String    @id @default(auto()) @map("_id") @db.ObjectId
   email          String    @unique
@@ -88,6 +101,7 @@ model Citizen {
   requests       Request[]
   birthDeclarations BirthDeclaration[]
   birthCertificates BirthCertificate[]
+  notifications  Notification[]
 }
 
 model Agent {

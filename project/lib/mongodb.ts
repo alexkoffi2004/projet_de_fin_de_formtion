@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
 
 if (!process.env.MONGODB_URI) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_URI"');
+  throw new Error('Please add your Mongo URI to .env.local');
 }
 
 const uri = process.env.MONGODB_URI;
@@ -28,17 +28,12 @@ if (process.env.NODE_ENV === 'development') {
   clientPromise = client.connect();
 }
 
+export async function connectToDatabase() {
+  const client = await clientPromise;
+  const db = client.db(process.env.MONGODB_DB);
+  return { client, db };
+}
+
 // Export a module-scoped MongoClient promise. By doing this in a
 // separate module, the client can be shared across functions.
-export default clientPromise;
-
-// Function to connect to the mairie_db database
-export async function connectToDatabase() {
-  if (typeof window !== 'undefined') {
-    throw new Error('This function can only be used on the server side');
-  }
-  
-  const client = await clientPromise;
-  const db = client.db('mairie_db');
-  return { db, client };
-} 
+export default clientPromise; 

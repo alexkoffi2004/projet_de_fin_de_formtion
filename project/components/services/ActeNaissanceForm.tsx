@@ -59,6 +59,18 @@ const ActeNaissanceForm: React.FC = () => {
 
   const handleIdProofUploadSuccess = (fileData: any) => {
     console.log('Pièce d\'identité uploadée avec succès:', fileData);
+    // Mettre à jour formData avec l'URL du fichier
+    setFormData(prev => ({
+      ...prev,
+      demandeurIdProof: {
+        fileList: [{
+          name: fileData.fileName,
+          status: 'done',
+          url: fileData.fileUrl,
+          response: { url: fileData.fileUrl }
+        }]
+      }
+    }));
     setIdProofStatus('done');
   };
 
@@ -84,8 +96,13 @@ const ActeNaissanceForm: React.FC = () => {
       if (!formData.fullName) missingFields.push('Nom complet');
       if (!formData.birthDate) missingFields.push('Date de naissance');
       if (!formData.birthPlace) missingFields.push('Lieu de naissance');
-      if (!formData.fatherFullName && !formData.motherFullName) missingFields.push('Nom du père ou de la mère');
-      if (idProofStatus !== 'done') missingFields.push('Pièce d\'identité');
+      
+      // Vérifier l'URL de la pièce d'identité
+      const idProofUrl = formData.demandeurIdProof?.fileList?.[0]?.response?.url || 
+                        formData.demandeurIdProof?.fileList?.[0]?.url;
+      if (!idProofUrl) {
+        missingFields.push('Pièce d\'identité');
+      }
 
       if (missingFields.length > 0) {
         throw new Error(`Champs manquants : ${missingFields.join(', ')}`);
@@ -99,8 +116,9 @@ const ActeNaissanceForm: React.FC = () => {
         fatherFullName: formData.fatherFullName || null,
         motherFullName: formData.motherFullName || null,
         acteNumber: formData.acteNumber || null,
-        demandeurIdProofUrl: formData.demandeurIdProof?.fileList?.[0]?.response?.url || formData.demandeurIdProof?.fileList?.[0]?.url,
-        existingActeUrl: formData.existingActe?.fileList?.[0]?.response?.url || formData.existingActe?.fileList?.[0]?.url || null,
+        demandeurIdProofUrl: idProofUrl,
+        existingActeUrl: formData.existingActe?.fileList?.[0]?.response?.url || 
+                        formData.existingActe?.fileList?.[0]?.url || null,
       };
 
       console.log('Données envoyées à l\'API:', data);
@@ -118,14 +136,14 @@ const ActeNaissanceForm: React.FC = () => {
       console.log('Réponse de l\'API:', responseData);
 
       if (!response.ok) {
-        throw new Error(responseData.error || 'Erreur lors de la soumission de la demande d\'acte de naissance');
+        throw new Error(responseData.message || 'Erreur lors de la soumission de la demande d\'acte de naissance');
       }
 
-      if (responseData.requestId) {
+      if (responseData.success) {
         message.success('Votre demande d\'acte de naissance a été soumise avec succès !');
         router.push('/citizen/documents');
       } else {
-        throw new Error(responseData.message || 'Erreur inattendue lors de la soumission (pas d\'ID de demande)');
+        throw new Error(responseData.message || 'Erreur inattendue lors de la soumission');
       }
 
     } catch (error: any) {

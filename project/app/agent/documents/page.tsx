@@ -36,13 +36,16 @@ import {
 
 interface Document {
   id: string;
-  type: string;
-  date: string;
+  trackingNumber: string;
+  fullName: string;
+  birthDate: string;
+  birthPlace: string;
   status: string;
   citizen: {
     name: string;
     email: string;
   };
+  createdAt: string;
 }
 
 export default function AgentDocuments() {
@@ -58,7 +61,7 @@ export default function AgentDocuments() {
 
   const fetchDocuments = async () => {
     try {
-      const response = await fetch('/api/agent/documents');
+      const response = await fetch('/api/agent/birth-certificates');
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des demandes');
       }
@@ -75,7 +78,7 @@ export default function AgentDocuments() {
   const updateDocumentStatus = async (documentId: string, status: string) => {
     setIsUpdating(true);
     try {
-      const response = await fetch('/api/agent/documents', {
+      const response = await fetch('/api/agent/birth-certificates', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -99,25 +102,61 @@ export default function AgentDocuments() {
   };
 
   const filteredDocuments = documents.filter(doc => 
-    doc.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    doc.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    doc.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doc.citizen.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doc.citizen.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case "APPROVED":
+        return "success";
+      case "REJECTED":
+        return "destructive";
+      case "PENDING":
+      default:
+        return "outline";
+    }
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "APPROVED":
+        return "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100";
+      case "REJECTED":
+        return "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100";
+      case "PENDING":
+      default:
+        return "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "APPROVED":
+        return "Validé";
+      case "REJECTED":
+        return "Rejeté";
+      case "PENDING":
+      default:
+        return "En attente";
+    }
+  };
 
   return (
     <AgentLayout>
       <div className="flex flex-col">
         <div className="flex-1 space-y-4 p-8 pt-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-bold tracking-tight">Gestion des demandes</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Gestion des actes de naissance</h2>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Toutes les demandes</CardTitle>
+              <CardTitle>Tous les actes de naissance</CardTitle>
               <CardDescription>
-                Gérez les demandes des citoyens
+                Gérez les demandes d'actes de naissance
               </CardDescription>
               <div className="flex w-full max-w-sm items-center space-x-2">
                 <Input 
@@ -143,7 +182,7 @@ export default function AgentDocuments() {
                 <TabsContent value="all">
                   <div className="rounded-md border">
                     <div className="grid grid-cols-6 p-4 font-medium">
-                      <div>Référence</div>
+                      <div>Numéro de suivi</div>
                       <div>Type</div>
                       <div>Citoyen</div>
                       <div>Email</div>
@@ -162,29 +201,17 @@ export default function AgentDocuments() {
                       ) : (
                         filteredDocuments.map((doc) => (
                           <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
-                            <div>{doc.id}</div>
-                            <div>{doc.type}</div>
+                            <div>{doc.trackingNumber}</div>
+                            <div>Acte de naissance</div>
                             <div>{doc.citizen.name}</div>
                             <div>{doc.citizen.email}</div>
-                            <div>{doc.date}</div>
+                            <div>{new Date(doc.createdAt).toLocaleDateString()}</div>
                             <div className="flex items-center space-x-2">
                               <Badge 
-                                variant={
-                                  doc.status === "Validé" 
-                                    ? "success" 
-                                    : doc.status === "Rejeté" 
-                                      ? "destructive" 
-                                      : "outline"
-                                }
-                                className={
-                                  doc.status === "Validé" 
-                                    ? "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100" 
-                                    : doc.status === "Rejeté" 
-                                      ? "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100" 
-                                      : "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100"
-                                }
+                                variant={getStatusBadgeVariant(doc.status)}
+                                className={getStatusBadgeClass(doc.status)}
                               >
-                                {doc.status}
+                                {getStatusLabel(doc.status)}
                               </Badge>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -208,7 +235,7 @@ export default function AgentDocuments() {
                 <TabsContent value="pending">
                   <div className="rounded-md border">
                     <div className="grid grid-cols-6 p-4 font-medium">
-                      <div>Référence</div>
+                      <div>Numéro de suivi</div>
                       <div>Type</div>
                       <div>Citoyen</div>
                       <div>Email</div>
@@ -220,23 +247,23 @@ export default function AgentDocuments() {
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                      ) : filteredDocuments.filter(doc => doc.status === "En traitement").length === 0 ? (
+                      ) : filteredDocuments.filter(doc => doc.status === "PENDING").length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           Aucune demande en attente
                         </div>
                       ) : (
                         filteredDocuments
-                          .filter(doc => doc.status === "En traitement")
+                          .filter(doc => doc.status === "PENDING")
                           .map((doc) => (
                             <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
-                              <div>{doc.id}</div>
-                              <div>{doc.type}</div>
+                              <div>{doc.trackingNumber}</div>
+                              <div>Acte de naissance</div>
                               <div>{doc.citizen.name}</div>
                               <div>{doc.citizen.email}</div>
-                              <div>{doc.date}</div>
+                              <div>{new Date(doc.createdAt).toLocaleDateString()}</div>
                               <div className="flex items-center space-x-2">
-                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">
-                                  {doc.status}
+                                <Badge className={getStatusBadgeClass(doc.status)}>
+                                  {getStatusLabel(doc.status)}
                                 </Badge>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -260,7 +287,7 @@ export default function AgentDocuments() {
                 <TabsContent value="approved">
                   <div className="rounded-md border">
                     <div className="grid grid-cols-6 p-4 font-medium">
-                      <div>Référence</div>
+                      <div>Numéro de suivi</div>
                       <div>Type</div>
                       <div>Citoyen</div>
                       <div>Email</div>
@@ -272,23 +299,23 @@ export default function AgentDocuments() {
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                      ) : filteredDocuments.filter(doc => doc.status === "Validé").length === 0 ? (
+                      ) : filteredDocuments.filter(doc => doc.status === "APPROVED").length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           Aucune demande validée
                         </div>
                       ) : (
                         filteredDocuments
-                          .filter(doc => doc.status === "Validé")
+                          .filter(doc => doc.status === "APPROVED")
                           .map((doc) => (
                             <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
-                              <div>{doc.id}</div>
-                              <div>{doc.type}</div>
+                              <div>{doc.trackingNumber}</div>
+                              <div>Acte de naissance</div>
                               <div>{doc.citizen.name}</div>
                               <div>{doc.citizen.email}</div>
-                              <div>{doc.date}</div>
+                              <div>{new Date(doc.createdAt).toLocaleDateString()}</div>
                               <div className="flex items-center space-x-2">
-                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100">
-                                  {doc.status}
+                                <Badge className={getStatusBadgeClass(doc.status)}>
+                                  {getStatusLabel(doc.status)}
                                 </Badge>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -312,7 +339,7 @@ export default function AgentDocuments() {
                 <TabsContent value="rejected">
                   <div className="rounded-md border">
                     <div className="grid grid-cols-6 p-4 font-medium">
-                      <div>Référence</div>
+                      <div>Numéro de suivi</div>
                       <div>Type</div>
                       <div>Citoyen</div>
                       <div>Email</div>
@@ -324,23 +351,23 @@ export default function AgentDocuments() {
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                      ) : filteredDocuments.filter(doc => doc.status === "Rejeté").length === 0 ? (
+                      ) : filteredDocuments.filter(doc => doc.status === "REJECTED").length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           Aucune demande rejetée
                         </div>
                       ) : (
                         filteredDocuments
-                          .filter(doc => doc.status === "Rejeté")
+                          .filter(doc => doc.status === "REJECTED")
                           .map((doc) => (
                             <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
-                              <div>{doc.id}</div>
-                              <div>{doc.type}</div>
+                              <div>{doc.trackingNumber}</div>
+                              <div>Acte de naissance</div>
                               <div>{doc.citizen.name}</div>
                               <div>{doc.citizen.email}</div>
-                              <div>{doc.date}</div>
+                              <div>{new Date(doc.createdAt).toLocaleDateString()}</div>
                               <div className="flex items-center space-x-2">
-                                <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100">
-                                  {doc.status}
+                                <Badge className={getStatusBadgeClass(doc.status)}>
+                                  {getStatusLabel(doc.status)}
                                 </Badge>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -372,14 +399,14 @@ export default function AgentDocuments() {
           <AlertDialogHeader>
             <AlertDialogTitle>Changer le statut de la demande</AlertDialogTitle>
             <AlertDialogDescription>
-              Sélectionnez le nouveau statut pour la demande {selectedDocument?.id}
+              Sélectionnez le nouveau statut pour la demande {selectedDocument?.trackingNumber}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid grid-cols-3 gap-4 py-4">
             <Button
               variant="outline"
               className="flex items-center space-x-2"
-              onClick={() => updateDocumentStatus(selectedDocument!.id, 'en_attente')}
+              onClick={() => updateDocumentStatus(selectedDocument!.id, 'PENDING')}
               disabled={isUpdating}
             >
               <Clock className="h-4 w-4" />
@@ -388,7 +415,7 @@ export default function AgentDocuments() {
             <Button
               variant="outline"
               className="flex items-center space-x-2"
-              onClick={() => updateDocumentStatus(selectedDocument!.id, 'valide')}
+              onClick={() => updateDocumentStatus(selectedDocument!.id, 'APPROVED')}
               disabled={isUpdating}
             >
               <CheckCircle className="h-4 w-4" />
@@ -397,7 +424,7 @@ export default function AgentDocuments() {
             <Button
               variant="outline"
               className="flex items-center space-x-2"
-              onClick={() => updateDocumentStatus(selectedDocument!.id, 'rejete')}
+              onClick={() => updateDocumentStatus(selectedDocument!.id, 'REJECTED')}
               disabled={isUpdating}
             >
               <AlertCircle className="h-4 w-4" />

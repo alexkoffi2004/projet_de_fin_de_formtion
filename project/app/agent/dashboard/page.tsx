@@ -230,7 +230,7 @@ export default function AgentDashboard() {
                 <div className="space-y-4">
                   {isLoading ? (
                     <div className="text-center py-4">Chargement...</div>
-                  ) : stats.statsByType.length === 0 ? (
+                  ) : !stats || Object.keys(stats).length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">
                       Aucune donnée disponible
                     </div>

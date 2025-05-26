@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Card, Typography, Descriptions, Tag, Timeline, Button, Space, message, Modal, Input } from 'antd';
+import { Card, Typography, Descriptions, Tag, Timeline, Button, Space, message, Modal, Input, Image } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { AgentLayout } from '@/components/layouts/agent-layout';
@@ -9,7 +9,7 @@ import { AgentLayout } from '@/components/layouts/agent-layout';
 const { Title } = Typography;
 const { TextArea } = Input;
 
-interface DocumentFile {
+interface Document {
   id: string;
   type: string;
   url: string;
@@ -18,20 +18,20 @@ interface DocumentFile {
 interface BirthCertificateRequest {
   id: string;
   fullName: string;
-  birthDate: string;
+  birthDate: Date;
   birthPlace: string;
   fatherFullName?: string;
   motherFullName?: string;
   status: string;
   trackingNumber: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   comment?: string;
   citizen: {
     name: string;
     email: string;
   };
-  files: DocumentFile[];
+  files: Document[];
 }
 
 const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
@@ -65,7 +65,7 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
     }
   };
 
-  const updateRequestStatus = async (newStatus: string, fileUrl?: string, fileType?: string) => {
+  const updateRequestStatus = async (newStatus: string) => {
     try {
       setUpdating(true);
       const response = await fetch(`/api/agent/birth-certificates?id=${params.id}`, {
@@ -76,8 +76,6 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
         body: JSON.stringify({
           status: newStatus,
           comment: comment,
-          // We are now handling file upload separately via a dedicated endpoint
-          // No need to send file info here anymore
         }),
       });
 
@@ -117,52 +115,20 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
     return texts[status as keyof typeof texts] || status;
   };
 
-  const getTimelineItems = () => {
-    if (!request) return [];
-    
-    const items = [
-      {
-        color: 'green',
-        children: `Demande créée le ${new Date(request.createdAt).toLocaleDateString()}`
-      }
-    ];
-
-    if (request.status === 'IN_PROGRESS') {
-      items.push({
-        color: 'blue',
-        children: `En cours de traitement`
-      });
-    } else if (request.status === 'COMPLETED') {
-      items.push({
-        color: 'green',
-        children: `Demande complétée le ${new Date(request.updatedAt).toLocaleDateString()}`
-      });
-    } else if (request.status === 'REJECTED') {
-      items.push({
-        color: 'red',
-        children: `Demande rejetée le ${new Date(request.updatedAt).toLocaleDateString()}`
-      });
-    }
-
-    return items;
-  };
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
+    if (event.target.files && event.target.files[0]) {
       setSelectedFile(event.target.files[0]);
-    } else {
-      setSelectedFile(null);
     }
   };
 
   const handleOk = async () => {
     const newStatus = request?.status === 'PENDING' ? 'COMPLETED' : 'REJECTED';
-    setUpdating(true); // Start updating process
+    setUpdating(true);
 
     if (newStatus === 'COMPLETED') {
       if (!selectedFile) {
         message.warning('Veuillez joindre le document final pour valider la demande.');
-        setUpdating(false); // Stop updating on warning
+        setUpdating(false);
         return;
       }
 
@@ -179,27 +145,24 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
 
         if (!uploadData.success) {
           message.error(uploadData.message || 'Erreur lors du téléversement du document final.');
-          setUpdating(false); // Stop updating on upload error
+          setUpdating(false);
           return;
         }
 
-        // If upload is successful, then update the request status to COMPLETED
         await updateRequestStatus(newStatus);
 
       } catch (error) {
         console.error('Error uploading final document:', error);
         message.error('Erreur lors du téléversement du document final.');
-        setUpdating(false); // Stop updating on catch error
+        setUpdating(false);
       }
 
     } else {
-      // If rejecting, just update status without file upload
       await updateRequestStatus(newStatus);
     }
   };
 
   const showModal = (statusToUpdate: 'COMPLETED' | 'REJECTED') => {
-    // Reset file selection only if opening modal for COMPLETED status
     if (statusToUpdate === 'COMPLETED') {
       setSelectedFile(null);
     }
@@ -262,67 +225,80 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
             </Descriptions>
           </Card>
 
-          <Card title="Informations du demandeur">
-            <Descriptions bordered>
-              <Descriptions.Item label="Nom">
-                {request.citizen.name}
-              </Descriptions.Item>
-              <Descriptions.Item label="Email">
-                {request.citizen.email}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          <Card title="Suivi de la demande">
-            <Timeline items={getTimelineItems()} />
+          <Card title="Documents fournis">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {request.files.map((file) => (
+                <Card key={file.id} size="small">
+                  <Space>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>
+                        {file.type === 'id_proof' ? 'Pièce d\'identité' : 
+                         file.type === 'existing_acte' ? 'Acte existant' : 
+                         file.type === 'acte_naissance_final' ? 'Acte de naissance final' : 
+                         file.type}
+                      </div>
+                      <a href={file.url} target="_blank" rel="noopener noreferrer">
+                        <Button icon={<DownloadOutlined />}>Télécharger</Button>
+                      </a>
+                    </div>
+                    {file.type === 'id_proof' && (
+                      <Image
+                        src={file.url}
+                        alt="Pièce d'identité"
+                        style={{ maxWidth: '200px', maxHeight: '200px' }}
+                      />
+                    )}
+                  </Space>
+                </Card>
+              ))}
+            </Space>
           </Card>
 
           {request.status === 'PENDING' && (
-            <Space>
-              <Button
-                type="primary"
-                icon={<CheckOutlined />}
-                onClick={() => showModal('COMPLETED')}
-                loading={updating}
-              >
-                Valider la demande
-              </Button>
-              <Button
-                danger
-                icon={<CloseOutlined />}
-                onClick={() => showModal('REJECTED')}
-                loading={updating}
-              >
-                Rejeter la demande
-              </Button>
-            </Space>
+            <Card title="Actions">
+              <Space>
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  onClick={() => showModal('COMPLETED')}
+                >
+                  Valider la demande
+                </Button>
+                <Button
+                  danger
+                  icon={<CloseOutlined />}
+                  onClick={() => showModal('REJECTED')}
+                >
+                  Rejeter la demande
+                </Button>
+              </Space>
+            </Card>
           )}
 
           <Modal
-            title="Confirmation"
+            title={request.status === 'PENDING' ? 'Valider la demande' : 'Rejeter la demande'}
             open={isModalVisible}
             onOk={handleOk}
             onCancel={handleCancel}
             confirmLoading={updating}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
-              <p>Êtes-vous sûr de vouloir {request?.status === 'PENDING' ? 'valider' : 'rejeter'} cette demande ?</p>
-              {request?.status === 'PENDING' && (
-                <>
-                  <p>Joindre le document final :</p>
-                  <Input 
-                    type="file" 
-                    onChange={handleFileChange} 
-                    accept=".pdf,.doc,.docx,.jpg,.png"
-                  />
-                </>
-              )}
               <TextArea
                 rows={4}
                 placeholder="Ajouter un commentaire (optionnel)"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
+              {request.status === 'PENDING' && (
+                <div>
+                  <p>Joindre le document final :</p>
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                </div>
+              )}
             </Space>
           </Modal>
         </Space>

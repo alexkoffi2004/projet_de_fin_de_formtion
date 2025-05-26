@@ -3,7 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -14,37 +17,31 @@ export async function GET() {
       );
     }
 
-    const requests = await prisma.birthCertificate.findMany({
+    const request = await prisma.birthCertificate.findUnique({
       where: {
+        id: params.id,
         citizenId: session.user.id
       },
-      select: {
-        id: true,
-        fullName: true,
-        birthDate: true,
-        status: true,
-        trackingNumber: true,
-        createdAt: true,
-        files: {
-          select: {
-            type: true,
-            url: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
+      include: {
+        files: true
       }
     });
 
+    if (!request) {
+      return NextResponse.json(
+        { success: false, message: 'Demande non trouvée' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      data: requests
+      data: request
     });
   } catch (error) {
-    console.error('Error fetching citizen requests:', error);
+    console.error('Error fetching request details:', error);
     return NextResponse.json(
-      { success: false, message: 'Erreur lors de la récupération des demandes' },
+      { success: false, message: 'Erreur lors de la récupération des détails' },
       { status: 500 }
     );
   }

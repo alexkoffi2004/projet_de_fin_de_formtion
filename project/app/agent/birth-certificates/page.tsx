@@ -9,24 +9,28 @@ import { AgentLayout } from '@/components/layouts/agent-layout';
 const { Title } = Typography;
 const { Option } = Select;
 
+interface Document {
+  id: string;
+  type: string;
+  url: string;
+}
+
 interface BirthCertificateRequest {
   id: string;
   fullName: string;
-  birthDate: string;
+  birthDate: Date;
   birthPlace: string;
   fatherFullName?: string;
   motherFullName?: string;
   status: string;
   trackingNumber: string;
-  createdAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   citizen: {
     name: string;
     email: string;
   };
-  files: {
-    demandeurIdProof: string;
-    existingActe?: string;
-  };
+  files: Document[];
 }
 
 const BirthCertificateRequests = () => {
@@ -44,15 +48,22 @@ const BirthCertificateRequests = () => {
 
   const fetchRequests = async () => {
     try {
+      console.log('Début de la récupération des demandes');
       const response = await fetch(`/api/agent/birth-certificates?status=${filters.status}&search=${filters.search}`);
+      console.log('Réponse reçue:', response.status);
+      
       const data = await response.json();
+      console.log('Données reçues:', data);
+
       if (data.success) {
+        console.log('Nombre de demandes:', data.data.length);
         setRequests(data.data);
       } else {
+        console.error('Erreur dans la réponse:', data.message);
         message.error(data.message || 'Erreur lors de la récupération des demandes');
       }
     } catch (error) {
-      console.error('Error fetching requests:', error);
+      console.error('Erreur lors de la récupération des demandes:', error);
       message.error('Erreur lors de la récupération des demandes');
     } finally {
       setLoading(false);
@@ -94,7 +105,7 @@ const BirthCertificateRequests = () => {
       title: 'Date de naissance',
       dataIndex: 'birthDate',
       key: 'birthDate',
-      render: (date: string) => new Date(date).toLocaleDateString(),
+      render: (date: Date) => new Date(date).toLocaleDateString(),
     },
     {
       title: 'Lieu de naissance',
@@ -125,19 +136,21 @@ const BirthCertificateRequests = () => {
       title: 'Date de demande',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleDateString(),
+      render: (date: Date) => new Date(date).toLocaleDateString(),
     },
     {
       title: 'Actions',
       key: 'actions',
       render: (_: any, record: BirthCertificateRequest) => (
-        <Button
-          type="primary"
-          icon={<EyeOutlined />}
-          onClick={() => router.push(`/agent/birth-certificates/${record.id}`)}
-        >
-          Voir détails
-        </Button>
+        <Space>
+          <Button
+            type="primary"
+            icon={<EyeOutlined />}
+            onClick={() => router.push(`/agent/birth-certificates/${record.id}`)}
+          >
+            Voir détails
+          </Button>
+        </Space>
       ),
     },
   ];
