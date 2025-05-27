@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from '@/lib/prisma';
-
-
 
 export async function GET() {
   try {
@@ -114,20 +110,18 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { db } = await connectToDatabase();
+    const updatedCertificate = await prisma.birthCertificate.update({
+      where: {
+        id: id,
+      },
+      data: {
+        status: status,
+        comment: comment,
+        updatedAt: new Date()
+      },
+    });
 
-    const result = await db.collection('birthCertificateRequests').updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          status,
-          comment,
-          updatedAt: new Date()
-        }
-      }
-    );
-
-    if (result.matchedCount === 0) {
+    if (!updatedCertificate) {
       return NextResponse.json(
         { success: false, message: 'Demande non trouvée' },
         { status: 404 }
@@ -136,7 +130,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Statut mis à jour avec succès'
+      message: 'Statut mis à jour avec succès',
+      data: updatedCertificate
     });
 
   } catch (error) {

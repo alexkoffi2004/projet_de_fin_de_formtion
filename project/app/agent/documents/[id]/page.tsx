@@ -34,7 +34,7 @@ interface BirthCertificateRequest {
   files: Document[];
 }
 
-const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
+const DocumentDetails = ({ params }: { params: { id: string } }) => {
   const [request, setRequest] = useState<BirthCertificateRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -189,7 +189,7 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <Button 
             icon={<ArrowLeftOutlined />} 
-            onClick={() => router.push('/agent/birth-certificates')}
+            onClick={() => router.push('/agent/documents')}
           >
             Retour à la liste
           </Button>
@@ -199,6 +199,33 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
               <Descriptions.Item label="Numéro de suivi" span={3}>
                 {request.trackingNumber}
               </Descriptions.Item>
+              <Descriptions.Item label="Statut">
+                <Tag color={getStatusColor(request.status)}>
+                  {getStatusText(request.status)}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Date de la demande">
+                {new Date(request.createdAt).toLocaleDateString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Dernière mise à jour">
+                {new Date(request.updatedAt).toLocaleDateString()}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          <Card title="Informations du demandeur">
+            <Descriptions bordered>
+              <Descriptions.Item label="Nom" span={3}>
+                {request.citizen.name}
+              </Descriptions.Item>
+              <Descriptions.Item label="Email" span={3}>
+                {request.citizen.email}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          <Card title="Informations de l'acte de naissance">
+            <Descriptions bordered>
               <Descriptions.Item label="Nom complet" span={3}>
                 {request.fullName}
               </Descriptions.Item>
@@ -214,38 +241,38 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
               <Descriptions.Item label="Nom de la mère">
                 {request.motherFullName || 'Non renseigné'}
               </Descriptions.Item>
-              <Descriptions.Item label="Statut">
-                <Tag color={getStatusColor(request.status)}>
-                  {getStatusText(request.status)}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Commentaire" span={3}>
-                {request.comment || 'Aucun commentaire'}
-              </Descriptions.Item>
             </Descriptions>
           </Card>
 
           <Card title="Documents fournis">
             <Space direction="vertical" style={{ width: '100%' }}>
               {request.files.map((file) => (
-                <Card key={file.id} size="small">
-                  <Space>
-                    <div>
-                      <div style={{ fontWeight: 'bold' }}>
-                        {file.type === 'id_proof' ? 'Pièce d\'identité' : 
-                         file.type === 'existing_acte' ? 'Acte existant' : 
-                         file.type === 'acte_naissance_final' ? 'Acte de naissance final' : 
+                <Card key={file.id} size="small" style={{ marginBottom: '16px' }}>
+                  <Space align="start">
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                        {file.type === 'DEMANDEUR_ID' ? 'Pièce d\'identité du demandeur' : 
+                         file.type === 'EXISTING_ACTE' ? 'Acte existant' : 
+                         file.type === 'ACTE_NAISSANCE_FINAL' ? 'Acte de naissance final' : 
                          file.type}
                       </div>
-                      <a href={file.url} target="_blank" rel="noopener noreferrer">
-                        <Button icon={<DownloadOutlined />}>Télécharger</Button>
-                      </a>
+                      <Space>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer">
+                          <Button icon={<DownloadOutlined />}>Télécharger</Button>
+                        </a>
+                        {(file.type === 'DEMANDEUR_ID' || file.type === 'EXISTING_ACTE') && (
+                          <Button onClick={() => window.open(file.url, '_blank')}>
+                            Voir le document
+                          </Button>
+                        )}
+                      </Space>
                     </div>
-                    {file.type === 'id_proof' && (
+                    {(file.type === 'DEMANDEUR_ID' || file.type === 'EXISTING_ACTE') && (
                       <Image
                         src={file.url}
-                        alt="Pièce d'identité"
-                        style={{ maxWidth: '200px', maxHeight: '200px' }}
+                        alt={file.type}
+                        style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'contain' }}
+                        preview={false}
                       />
                     )}
                   </Space>
@@ -257,15 +284,15 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
           {request.status === 'PENDING' && (
             <Card title="Actions">
               <Space>
-                <Button
-                  type="primary"
+                <Button 
+                  type="primary" 
                   icon={<CheckOutlined />}
                   onClick={() => showModal('COMPLETED')}
                 >
                   Valider la demande
                 </Button>
-                <Button
-                  danger
+                <Button 
+                  danger 
                   icon={<CloseOutlined />}
                   onClick={() => showModal('REJECTED')}
                 >
@@ -276,26 +303,42 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
           )}
 
           <Modal
-            title={request.status === 'PENDING' ? 'Valider la demande' : 'Rejeter la demande'}
+            title={request.status === 'PENDING' ? "Valider la demande" : "Rejeter la demande"}
             open={isModalVisible}
             onOk={handleOk}
             onCancel={handleCancel}
             confirmLoading={updating}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
-              <TextArea
-                rows={4}
-                placeholder="Ajouter un commentaire (optionnel)"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-              />
               {request.status === 'PENDING' && (
+                <>
+                  <div>
+                    <p>Veuillez joindre l'acte de naissance final :</p>
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      accept=".pdf,.jpg,.jpeg,.png"
+                    />
+                  </div>
+                  <div>
+                    <p>Commentaire (optionnel) :</p>
+                    <TextArea
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      rows={4}
+                      placeholder="Ajouter un commentaire..."
+                    />
+                  </div>
+                </>
+              )}
+              {request.status !== 'PENDING' && (
                 <div>
-                  <p>Joindre le document final :</p>
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    accept=".pdf,.jpg,.jpeg,.png"
+                  <p>Raison du rejet :</p>
+                  <TextArea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={4}
+                    placeholder="Expliquez la raison du rejet..."
                   />
                 </div>
               )}
@@ -307,4 +350,4 @@ const BirthCertificateDetails = ({ params }: { params: { id: string } }) => {
   );
 };
 
-export default BirthCertificateDetails; 
+export default DocumentDetails; 

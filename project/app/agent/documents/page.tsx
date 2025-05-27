@@ -33,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useRouter } from "next/navigation";
 
 interface Document {
   id: string;
@@ -54,6 +55,7 @@ export default function AgentDocuments() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     fetchDocuments();
@@ -220,6 +222,9 @@ export default function AgentDocuments() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => router.push(`/agent/documents/${doc.id}`)}>
+                                    Voir les détails
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => setSelectedDocument(doc)}>
                                     Changer le statut
                                   </DropdownMenuItem>
@@ -272,6 +277,9 @@ export default function AgentDocuments() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => router.push(`/agent/documents/${doc.id}`)}>
+                                      Voir les détails
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setSelectedDocument(doc)}>
                                       Changer le statut
                                     </DropdownMenuItem>
@@ -324,6 +332,9 @@ export default function AgentDocuments() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => router.push(`/agent/documents/${doc.id}`)}>
+                                      Voir les détails
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setSelectedDocument(doc)}>
                                       Changer le statut
                                     </DropdownMenuItem>
@@ -376,6 +387,9 @@ export default function AgentDocuments() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => router.push(`/agent/documents/${doc.id}`)}>
+                                      Voir les détails
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setSelectedDocument(doc)}>
                                       Changer le statut
                                     </DropdownMenuItem>

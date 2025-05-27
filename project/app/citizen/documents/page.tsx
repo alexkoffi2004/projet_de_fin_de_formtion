@@ -32,14 +32,20 @@ import {
 } from "@/components/ui/select";
 
 interface Document {
-  _id: string;
-  documentType: string;
+  id: string;
+  fullName: string;
+  birthDate: Date;
+  birthPlace: string;
+  fatherFullName?: string;
+  motherFullName?: string;
   status: string;
-  createdAt: string;
-  documentUrl?: string;
-  reason?: string;
-  additionalInfo?: string;
-  urgency?: string;
+  trackingNumber: string;
+  createdAt: Date;
+  updatedAt: Date;
+  files: {
+    type: string;
+    url: string;
+  }[];
 }
 
 export default function CitizenDocuments() {
@@ -61,7 +67,7 @@ export default function CitizenDocuments() {
         throw new Error('Erreur lors de la récupération des documents');
       }
       const data = await response.json();
-      setDocuments(data);
+      setDocuments(data.data);
     } catch (error) {
       console.error('Erreur:', error);
       toast.error('Erreur lors de la récupération des documents');
@@ -72,11 +78,11 @@ export default function CitizenDocuments() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'en_attente':
+      case 'PENDING':
         return <Badge variant="secondary">En attente</Badge>;
-      case 'valide':
+      case 'APPROVED':
         return <Badge variant="success">Validé</Badge>;
-      case 'rejete':
+      case 'REJECTED':
         return <Badge variant="destructive">Rejeté</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
@@ -84,25 +90,16 @@ export default function CitizenDocuments() {
   };
 
   const getDocumentTypeLabel = (type: string) => {
-    const types: { [key: string]: string } = {
-      'birth_declaration': 'Déclaration de naissance',
-      'birth_certificate': 'Acte de naissance',
-      'residence_certificate': 'Certificat de résidence',
-      'marriage_certificate': 'Certificat de mariage',
-      'criminal_record': 'Extrait de casier judiciaire',
-      'id_card': 'Carte d\'identité',
-      'passport': 'Passeport'
-    };
-    return types[type] || type;
+    return "Acte de naissance";
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'en_attente':
+      case 'PENDING':
         return 'En attente de validation';
-      case 'valide':
+      case 'APPROVED':
         return 'Document validé et disponible';
-      case 'rejete':
+      case 'REJECTED':
         return 'Demande rejetée';
       default:
         return status;
@@ -111,12 +108,11 @@ export default function CitizenDocuments() {
 
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = 
-      getDocumentTypeLabel(doc.documentType).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc._id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (doc.reason && doc.reason.toLowerCase().includes(searchTerm.toLowerCase()));
+      doc.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
-    const matchesType = typeFilter === 'all' || doc.documentType === typeFilter;
+    const matchesType = typeFilter === 'all' || typeFilter === 'birth_certificate';
 
     let matchesDate = true;
     if (dateFilter !== 'all') {
@@ -174,9 +170,9 @@ export default function CitizenDocuments() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tous les statuts</SelectItem>
-                      <SelectItem value="en_attente">En attente</SelectItem>
-                      <SelectItem value="valide">Validé</SelectItem>
-                      <SelectItem value="rejete">Rejeté</SelectItem>
+                      <SelectItem value="PENDING">En attente</SelectItem>
+                      <SelectItem value="APPROVED">Validé</SelectItem>
+                      <SelectItem value="REJECTED">Rejeté</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -187,11 +183,6 @@ export default function CitizenDocuments() {
                     <SelectContent>
                       <SelectItem value="all">Tous les types</SelectItem>
                       <SelectItem value="birth_certificate">Acte de naissance</SelectItem>
-                      <SelectItem value="residence_certificate">Certificat de résidence</SelectItem>
-                      <SelectItem value="marriage_certificate">Certificat de mariage</SelectItem>
-                      <SelectItem value="criminal_record">Extrait de casier judiciaire</SelectItem>
-                      <SelectItem value="id_card">Carte d'identité</SelectItem>
-                      <SelectItem value="passport">Passeport</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -229,7 +220,7 @@ export default function CitizenDocuments() {
                   ) : (
                     filteredDocuments.map((doc) => (
                       <div
-                        key={doc._id}
+                        key={doc.id}
                         className="grid grid-cols-6 p-4 items-center hover:bg-muted/50 transition-colors"
                       >
                         <div className="col-span-2">
@@ -237,13 +228,11 @@ export default function CitizenDocuments() {
                             <FileText className="h-4 w-4 text-muted-foreground" />
                             <div>
                               <p className="font-medium">
-                                {getDocumentTypeLabel(doc.documentType)}
+                                {getDocumentTypeLabel("birth_certificate")}
                               </p>
-                              {doc.reason && (
-                                <p className="text-sm text-muted-foreground">
-                                  {doc.reason}
-                                </p>
-                              )}
+                              <p className="text-sm text-muted-foreground">
+                                {doc.fullName}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -255,19 +244,19 @@ export default function CitizenDocuments() {
                         </div>
                         <div>
                           <Badge variant="outline">
-                            {doc.urgency === 'urgent' ? 'Urgent' : 'Normal'}
+                            {doc.status === 'APPROVED' ? 'Normal' : 'Urgent'}
                           </Badge>
                         </div>
                         <div className="flex justify-end space-x-2">
-                          {doc.status === 'valide' && doc.documentUrl && (
+                          {doc.status === 'APPROVED' && doc.files[0]?.url && (
                             <Button variant="ghost" size="icon" asChild>
-                              <Link href={doc.documentUrl}>
+                              <Link href={doc.files[0].url}>
                                 <Download className="h-4 w-4" />
                               </Link>
                             </Button>
                           )}
                           <Button variant="ghost" size="icon" asChild>
-                            <Link href={`/citizen/document/${doc._id}`}>
+                            <Link href={`/citizen/document/${doc.id}`}>
                               <Eye className="h-4 w-4" />
                             </Link>
                           </Button>

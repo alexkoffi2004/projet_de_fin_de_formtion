@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -13,13 +13,18 @@ export async function GET() {
       );
     }
 
-    const { db } = await connectToDatabase();
-
     // Récupérer tous les documents du citoyen, triés par date de création (du plus récent au plus ancien)
-    const documents = await db.collection('BirthCertificate')
-      .find({ citizenId: session.user.id })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const documents = await prisma.birthCertificate.findMany({
+      where: {
+        citizenId: session.user.id
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        files: true
+      }
+    });
 
     return NextResponse.json({
       success: true,

@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const request = await prisma.birthCertificate.create({
+    const birthCertificate = await prisma.birthCertificate.create({
       data: {
         citizenId: session.user.id,
         fullName,
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: request
+      data: birthCertificate
     });
   } catch (error) {
     console.error('Error creating birth certificate request:', error);
