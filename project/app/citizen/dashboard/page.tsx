@@ -120,15 +120,11 @@ export default function CitizenDashboard() {
 
   const filteredRequests = stats.recentRequests.filter(request => {
     const matchesSearch = 
-      getDocumentTypeLabel(request.documentType).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (request.documentType ? getDocumentTypeLabel(request.documentType).toLowerCase() : '').includes(searchTerm.toLowerCase()) ||
       request._id.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (activeTab === 'all') return matchesSearch;
-    if (activeTab === 'pending') return matchesSearch && request.status === 'en_attente';
-    if (activeTab === 'validated') return matchesSearch && request.status === 'valide';
-    if (activeTab === 'rejected') return matchesSearch && request.status === 'rejete';
-    
-    return matchesSearch;
+    return matchesSearch && request.status === activeTab;
   });
 
   return (

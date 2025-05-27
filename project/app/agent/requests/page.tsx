@@ -1,169 +1,237 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Table, Tag, Card, Typography, Space, Button, Select, Input } from 'antd';
-import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
-
-const { Title } = Typography;
-const { Option } = Select;
+import { useState, useEffect } from "react";
+import { 
+  FileText, 
+  Search,
+  Eye,
+  Filter,
+  ChevronDown,
+  Calendar
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { AgentLayout } from "@/components/layouts/agent-layout";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 
 interface Request {
   id: string;
-  childName: string;
-  birthDate: string;
+  type: 'birth_certificate' | 'birth_declaration';
+  fullName?: string;
+  childFirstName?: string;
+  childLastName?: string;
+  birthDate: Date;
+  birthPlace: string;
   status: string;
-  trackingNumber: string;
-  createdAt: string;
+  trackingNumber?: string;
+  createdAt: Date;
   citizen: {
     name: string;
     email: string;
   };
 }
 
-const AgentRequests = () => {
+export default function AllRequestsPage() {
   const [requests, setRequests] = useState<Request[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    status: 'ALL',
-    search: ''
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const router = useRouter();
 
   useEffect(() => {
     fetchRequests();
-  }, [filters]);
+  }, []);
 
   const fetchRequests = async () => {
     try {
-      const response = await fetch(`/api/agent/requests?status=${filters.status}&search=${filters.search}`);
-      const data = await response.json();
-      if (data.success) {
-        setRequests(data.data);
+      const response = await fetch('/api/agent/requests');
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des demandes');
       }
+      const data = await response.json();
+      setRequests(data.data);
     } catch (error) {
-      console.error('Error fetching requests:', error);
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la récupération des demandes');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      PENDING: 'orange',
-      IN_PROGRESS: 'blue',
-      COMPLETED: 'green',
-      REJECTED: 'red'
-    };
-    return colors[status as keyof typeof colors] || 'default';
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+      case 'en_attente':
+        return <Badge variant="secondary">En attente</Badge>;
+      case 'APPROVED':
+      case 'approuvé':
+        return <Badge variant="success">Validé</Badge>;
+      case 'REJECTED':
+      case 'rejeté':
+        return <Badge variant="destructive">Rejeté</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
-  const getStatusText = (status: string) => {
-    const texts = {
-      PENDING: 'En attente',
-      IN_PROGRESS: 'En cours',
-      COMPLETED: 'Complété',
-      REJECTED: 'Rejeté'
-    };
-    return texts[status as keyof typeof texts] || status;
+  const getDocumentTypeLabel = (type: string) => {
+    switch (type) {
+      case 'birth_certificate':
+        return "Acte de naissance";
+      case 'birth_declaration':
+        return "Déclaration de naissance";
+      default:
+        return type;
+    }
   };
 
-  const columns = [
-    {
-      title: 'Numéro de suivi',
-      dataIndex: 'trackingNumber',
-      key: 'trackingNumber',
-    },
-    {
-      title: 'Nom de l\'enfant',
-      dataIndex: 'childName',
-      key: 'childName',
-    },
-    {
-      title: 'Date de naissance',
-      dataIndex: 'birthDate',
-      key: 'birthDate',
-      render: (date: string) => new Date(date).toLocaleDateString(),
-    },
-    {
-      title: 'Demandeur',
-      key: 'citizen',
-      render: (record: Request) => (
-        <div>
-          <div>{record.citizen.name}</div>
-          <div style={{ color: '#666', fontSize: '12px' }}>{record.citizen.email}</div>
-        </div>
-      ),
-    },
-    {
-      title: 'Statut',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>
-          {getStatusText(status)}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Date de demande',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleDateString(),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_: any, record: Request) => (
-        <Button
-          type="primary"
-          icon={<EyeOutlined />}
-          onClick={() => router.push(`/agent/requests/${record.id}`)}
-        >
-          Voir détails
-        </Button>
-      ),
-    },
-  ];
+  const getFullName = (request: Request) => {
+    if (request.type === 'birth_certificate') {
+      return request.fullName || 'N/A';
+    } else {
+      return `${request.childFirstName || ''} ${request.childLastName || ''}`.trim() || 'N/A';
+    }
+  };
+
+  const filteredRequests = requests.filter(request => {
+    const matchesSearch = 
+      getFullName(request).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.citizen.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.citizen.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+    const matchesType = typeFilter === 'all' || request.type === typeFilter;
+
+    return matchesSearch && matchesStatus && matchesType;
+  });
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2}>Gestion des demandes</Title>
-      
-      <Card style={{ marginBottom: '24px' }}>
-        <Space size="large">
-          <Select
-            style={{ width: 200 }}
-            value={filters.status}
-            onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-          >
-            <Option value="ALL">Tous les statuts</Option>
-            <Option value="PENDING">En attente</Option>
-            <Option value="IN_PROGRESS">En cours</Option>
-            <Option value="COMPLETED">Complété</Option>
-            <Option value="REJECTED">Rejeté</Option>
-          </Select>
+    <AgentLayout>
+      <div className="flex flex-col">
+        <div className="flex-1 space-y-4 p-8 pt-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-bold tracking-tight">Toutes les demandes</h2>
+          </div>
 
-          <Input
-            placeholder="Rechercher par numéro de suivi ou nom"
-            prefix={<SearchOutlined />}
-            style={{ width: 300 }}
-            value={filters.search}
-            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-          />
-        </Space>
-      </Card>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="flex-1 w-full md:w-auto">
+                  <Input
+                    placeholder="Rechercher une demande..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full md:w-[300px]"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="PENDING">En attente</SelectItem>
+                      <SelectItem value="APPROVED">Validé</SelectItem>
+                      <SelectItem value="REJECTED">Rejeté</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-      <Card>
-        <Table
-          columns={columns}
-          dataSource={requests}
-          loading={loading}
-          rowKey="id"
-        />
-      </Card>
-    </div>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Type de document" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les types</SelectItem>
+                      <SelectItem value="birth_certificate">Acte de naissance</SelectItem>
+                      <SelectItem value="birth_declaration">Déclaration de naissance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <div className="grid grid-cols-6 p-4 font-medium bg-muted/50">
+                  <div className="col-span-2">Type de document</div>
+                  <div>Date</div>
+                  <div>Statut</div>
+                  <div>Demandeur</div>
+                  <div className="text-right">Actions</div>
+                </div>
+                <div className="divide-y">
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    </div>
+                  ) : filteredRequests.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Aucune demande trouvée
+                    </div>
+                  ) : (
+                    filteredRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="grid grid-cols-6 p-4 items-center hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="col-span-2">
+                          <div className="flex items-center space-x-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">
+                                {getDocumentTypeLabel(request.type)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {getFullName(request)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          {new Date(request.createdAt).toLocaleDateString()}
+                        </div>
+                        <div>
+                          {getStatusBadge(request.status)}
+                        </div>
+                        <div>
+                          <p className="font-medium">{request.citizen.name}</p>
+                          <p className="text-sm text-muted-foreground">{request.citizen.email}</p>
+                        </div>
+                        <div className="flex justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (request.type === 'birth_certificate') {
+                                router.push(`/agent/documents/${request.id}`);
+                              } else {
+                                router.push(`/agent/birth-declarations/${request.id}`);
+                              }
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </AgentLayout>
   );
-};
-
-export default AgentRequests; 
+} 

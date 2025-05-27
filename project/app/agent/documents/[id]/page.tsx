@@ -97,20 +97,18 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
 
   const getStatusColor = (status: string) => {
     const colors = {
-      PENDING: 'orange',
-      IN_PROGRESS: 'blue',
-      COMPLETED: 'green',
-      REJECTED: 'red'
+      en_attente: 'orange',
+      approuvé: 'green',
+      rejeté: 'red'
     };
     return colors[status as keyof typeof colors] || 'default';
   };
 
   const getStatusText = (status: string) => {
     const texts = {
-      PENDING: 'En attente',
-      IN_PROGRESS: 'En cours',
-      COMPLETED: 'Complété',
-      REJECTED: 'Rejeté'
+      en_attente: 'En attente',
+      approuvé: 'Approuvé',
+      rejeté: 'Rejeté'
     };
     return texts[status as keyof typeof texts] || status;
   };
@@ -122,10 +120,10 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
   };
 
   const handleOk = async () => {
-    const newStatus = request?.status === 'PENDING' ? 'COMPLETED' : 'REJECTED';
+    const newStatus = request?.status === 'en_attente' ? 'approuvé' : 'rejeté';
     setUpdating(true);
 
-    if (newStatus === 'COMPLETED') {
+    if (newStatus === 'approuvé') {
       if (!selectedFile) {
         message.warning('Veuillez joindre le document final pour valider la demande.');
         setUpdating(false);
@@ -162,8 +160,8 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
     }
   };
 
-  const showModal = (statusToUpdate: 'COMPLETED' | 'REJECTED') => {
-    if (statusToUpdate === 'COMPLETED') {
+  const showModal = (statusToUpdate: 'approuvé' | 'rejeté') => {
+    if (statusToUpdate === 'approuvé') {
       setSelectedFile(null);
     }
     setIsModalVisible(true);
@@ -281,20 +279,20 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
             </Space>
           </Card>
 
-          {request.status === 'PENDING' && (
+          {request.status === 'en_attente' && (
             <Card title="Actions">
               <Space>
                 <Button 
                   type="primary" 
                   icon={<CheckOutlined />}
-                  onClick={() => showModal('COMPLETED')}
+                  onClick={() => showModal('approuvé')}
                 >
                   Valider la demande
                 </Button>
                 <Button 
                   danger 
                   icon={<CloseOutlined />}
-                  onClick={() => showModal('REJECTED')}
+                  onClick={() => showModal('rejeté')}
                 >
                   Rejeter la demande
                 </Button>
@@ -303,14 +301,14 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
           )}
 
           <Modal
-            title={request.status === 'PENDING' ? "Valider la demande" : "Rejeter la demande"}
+            title={request.status === 'en_attente' ? "Valider la demande" : "Rejeter la demande"}
             open={isModalVisible}
             onOk={handleOk}
             onCancel={handleCancel}
             confirmLoading={updating}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
-              {request.status === 'PENDING' && (
+              {request.status === 'en_attente' && (
                 <>
                   <div>
                     <p>Veuillez joindre l'acte de naissance final :</p>
@@ -331,7 +329,7 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
                   </div>
                 </>
               )}
-              {request.status !== 'PENDING' && (
+              {request.status !== 'en_attente' && (
                 <div>
                   <p>Raison du rejet :</p>
                   <TextArea

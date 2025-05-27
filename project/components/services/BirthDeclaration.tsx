@@ -8,6 +8,7 @@ import { CitizenLayout } from '@/components/layouts/citizen-layout';
 import { jsPDF } from 'jspdf';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import type { Dayjs } from 'dayjs';
 
 const { Step } = Steps;
 const { Option } = Select;
@@ -17,7 +18,7 @@ interface BirthDeclarationForm {
   childFirstName: string;
   childLastName: string;
   childGender: string;
-  birthDate: string;
+  birthDate: Dayjs | null;
   birthPlace: string;
   fatherFirstName: string;
   fatherLastName: string;
@@ -33,6 +34,7 @@ const BirthDeclaration: React.FC = () => {
   const [form] = Form.useForm<BirthDeclarationForm>();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<Partial<BirthDeclarationForm>>({});
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -43,43 +45,64 @@ const BirthDeclaration: React.FC = () => {
     }
   }, [status, router]);
 
+  // Sauvegarder les données à chaque changement
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    setFormData(prev => ({ ...prev, ...allValues }));
+  };
+
   const handleConfirm = async () => {
     try {
       setLoading(true);
       
-      // Vérifier si l'utilisateur est connecté
       if (!session?.user) {
         message.error('Vous devez être connecté pour soumettre une déclaration');
         router.push('/auth/login');
         return;
       }
 
-      // Valider et récupérer les valeurs du formulaire
       try {
-        // Valider tous les champs
-        const values = await form.validateFields();
+        // Utiliser les données stockées dans formData
+        const values = formData;
         console.log('Form values before submission:', values);
+
+        // Vérifier que tous les champs requis sont remplis
+        const requiredFields = [
+          'childFirstName',
+          'childLastName',
+          'childGender',
+          'birthDate',
+          'birthPlace',
+          'fatherFirstName',
+          'fatherLastName',
+          'motherFirstName',
+          'motherLastName'
+        ] as const;
+
+        const missingFields = requiredFields.filter(field => !values[field as keyof BirthDeclarationForm]);
+        if (missingFields.length > 0) {
+          message.error(`Veuillez remplir les champs suivants : ${missingFields.join(', ')}`);
+          return;
+        }
 
         // Préparer les données dans le bon format
         const data = {
-          childFirstName: values.childFirstName,
-          childLastName: values.childLastName,
+          childFirstName: values.childFirstName?.trim(),
+          childLastName: values.childLastName?.trim(),
           childGender: values.childGender,
           birthDate: values.birthDate?.toISOString(),
-          birthPlace: values.birthPlace,
-          fatherFirstName: values.fatherFirstName,
-          fatherLastName: values.fatherLastName,
-          motherFirstName: values.motherFirstName,
-          motherLastName: values.motherLastName,
+          birthPlace: values.birthPlace?.trim(),
+          fatherFirstName: values.fatherFirstName?.trim(),
+          fatherLastName: values.fatherLastName?.trim(),
+          motherFirstName: values.motherFirstName?.trim(),
+          motherLastName: values.motherLastName?.trim(),
           documents: values.documents?.map((file: any) => ({
-            type: file.type || file.response?.type,
-            url: file.url || file.response?.url
-          })) || []
+            type: file.type || 'DOCUMENT',
+            url: file.response?.url || file.url
+          })).filter((doc: any) => doc.url) || []
         };
 
         console.log('Data being sent:', data);
         
-        // Appel à l'API pour soumettre la demande
         const response = await fetch('/api/birth-declaration', {
           method: 'POST',
           headers: {
@@ -116,16 +139,14 @@ const BirthDeclaration: React.FC = () => {
 
   const next = async () => {
     try {
-      // Valider uniquement les champs de l'étape courante
       const fieldsToValidate = currentStep === 0 
         ? ['childFirstName', 'childLastName', 'childGender', 'birthDate', 'birthPlace']
         : currentStep === 1
         ? ['fatherFirstName', 'fatherLastName', 'motherFirstName', 'motherLastName']
         : ['documents'];
 
-      await form.validateFields(fieldsToValidate);
-      const currentValues = form.getFieldsValue();
-      console.log('Current step values:', currentValues);
+      const values = await form.validateFields(fieldsToValidate);
+      setFormData(prev => ({ ...prev, ...values }));
       setCurrentStep(currentStep + 1);
     } catch (error) {
       console.error('Validation error:', error);
@@ -153,18 +174,8 @@ const BirthDeclaration: React.FC = () => {
             form={form} 
             layout="vertical"
             preserve={true}
-            initialValues={{
-              childFirstName: '',
-              childLastName: '',
-              childGender: undefined,
-              birthDate: null,
-              birthPlace: '',
-              fatherFirstName: '',
-              fatherLastName: '',
-              motherFirstName: '',
-              motherLastName: '',
-              documents: []
-            }}
+            onValuesChange={handleValuesChange}
+            initialValues={formData}
           >
             {currentStep === 0 && (
               <>

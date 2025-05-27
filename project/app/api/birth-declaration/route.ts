@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { nanoid } from 'nanoid';
 
 export async function POST(request: Request) {
   try {
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
         status: 'en_attente',
         documents: {
           create: data.documents?.map((doc: any) => ({
-            type: doc.type,
+            type: doc.type || 'DOCUMENT',
             url: doc.url
           })) || []
         },
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
             status: 'en_attente'
           }
         }
+      },
+      include: {
+        documents: true,
+        payment: true
       }
     });
 

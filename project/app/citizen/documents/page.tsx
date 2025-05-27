@@ -33,13 +33,14 @@ import {
 
 interface Document {
   id: string;
-  fullName: string;
-  birthDate: Date;
-  birthPlace: string;
+  documentType: 'birth_certificate' | 'birth_declaration';
+  fullName?: string;
+  birthDate?: Date;
+  birthPlace?: string;
   fatherFullName?: string;
   motherFullName?: string;
   status: string;
-  trackingNumber: string;
+  trackingNumber?: string;
   createdAt: Date;
   updatedAt: Date;
   files: {
@@ -78,11 +79,11 @@ export default function CitizenDocuments() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'PENDING':
+      case 'en_attente':
         return <Badge variant="secondary">En attente</Badge>;
-      case 'APPROVED':
+      case 'approuvé':
         return <Badge variant="success">Validé</Badge>;
-      case 'REJECTED':
+      case 'rejeté':
         return <Badge variant="destructive">Rejeté</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
@@ -90,7 +91,14 @@ export default function CitizenDocuments() {
   };
 
   const getDocumentTypeLabel = (type: string) => {
-    return "Acte de naissance";
+    switch (type) {
+      case 'birth_certificate':
+        return "Acte de naissance";
+      case 'birth_declaration':
+        return "Déclaration de naissance";
+      default:
+        return type;
+    }
   };
 
   const getStatusLabel = (status: string) => {
@@ -108,11 +116,11 @@ export default function CitizenDocuments() {
 
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = 
-      doc.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.trackingNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      (doc.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (doc.trackingNumber?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
 
     const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
-    const matchesType = typeFilter === 'all' || typeFilter === 'birth_certificate';
+    const matchesType = typeFilter === 'all' || doc.documentType === typeFilter;
 
     let matchesDate = true;
     if (dateFilter !== 'all') {
@@ -183,6 +191,7 @@ export default function CitizenDocuments() {
                     <SelectContent>
                       <SelectItem value="all">Tous les types</SelectItem>
                       <SelectItem value="birth_certificate">Acte de naissance</SelectItem>
+                      <SelectItem value="birth_declaration">Déclaration de naissance</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -228,10 +237,10 @@ export default function CitizenDocuments() {
                             <FileText className="h-4 w-4 text-muted-foreground" />
                             <div>
                               <p className="font-medium">
-                                {getDocumentTypeLabel("birth_certificate")}
+                                {getDocumentTypeLabel(doc.documentType)}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                {doc.fullName}
+                                {doc.fullName || 'N/A'}
                               </p>
                             </div>
                           </div>

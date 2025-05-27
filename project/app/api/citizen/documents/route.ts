@@ -13,18 +13,67 @@ export async function GET() {
       );
     }
 
-    // Récupérer tous les documents du citoyen, triés par date de création (du plus récent au plus ancien)
-    const documents = await prisma.birthCertificate.findMany({
-      where: {
-        citizenId: session.user.id
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      include: {
-        files: true
-      }
-    });
+    // Récupérer tous les documents du citoyen
+    const [birthCertificates, birthDeclarations] = await Promise.all([
+      prisma.birthCertificate.findMany({
+        where: {
+          citizenId: session.user.id
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        include: {
+          files: true
+        }
+      }),
+      prisma.birthDeclaration.findMany({
+        where: {
+          citizenId: session.user.id
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        include: {
+          documents: true,
+          citizen: true
+        }
+      })
+    ]);
+
+    // Combiner et formater les documents
+    const documents = [
+      ...birthCertificates.map(cert => ({
+        id: cert.id,
+        documentType: 'birth_certificate',
+        fullName: cert.fullName,
+        birthDate: cert.birthDate,
+        birthPlace: cert.birthPlace,
+        fatherFullName: cert.fatherFullName,
+        motherFullName: cert.motherFullName,
+        status: cert.status,
+        trackingNumber: cert.trackingNumber,
+        createdAt: cert.createdAt,
+        updatedAt: cert.updatedAt,
+        files: cert.files
+      })),
+      ...birthDeclarations.map(decl => ({
+        id: decl.id,
+        documentType: 'birth_declaration',
+        fullName: `${decl.childFirstName} ${decl.childLastName}`,
+        birthDate: decl.birthDate,
+        birthPlace: decl.birthPlace,
+        fatherFullName: `${decl.fatherFirstName} ${decl.fatherLastName}`,
+        motherFullName: `${decl.motherFirstName} ${decl.motherLastName}`,
+        status: decl.status,
+        trackingNumber: decl.id,
+        createdAt: decl.createdAt,
+        updatedAt: decl.updatedAt,
+        files: decl.documents.map(doc => ({
+          type: doc.type,
+          url: doc.url
+        }))
+      }))
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return NextResponse.json({
       success: true,

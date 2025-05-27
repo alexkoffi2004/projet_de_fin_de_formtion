@@ -63,13 +63,13 @@ export async function PUT(request: Request) {
         id: documentId,
       },
       data: {
-        status: status.toUpperCase(),
+        status: status === "approuvé" ? "approuvé" : status === "rejeté" ? "rejeté" : "en_attente",
         agentId: session.user.id,
       },
     });
 
     // Créer une notification pour le citoyen
-    const statusLabel = status === "APPROVED" ? "validée" : status === "REJECTED" ? "rejetée" : "en attente";
+    const statusLabel = status === "approuvé" ? "validée" : status === "rejeté" ? "rejetée" : "en attente";
     
     await prisma.notification.create({
       data: {
@@ -110,12 +110,17 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // Convertir le statut au format correct
+    const normalizedStatus = status === "approuvé" ? "approuvé" :
+                           status === "rejeté" ? "rejeté" :
+                           status === "en_attente" ? "en_attente" : status;
+
     const updatedCertificate = await prisma.birthCertificate.update({
       where: {
         id: id,
       },
       data: {
-        status: status,
+        status: normalizedStatus,
         comment: comment,
         updatedAt: new Date()
       },

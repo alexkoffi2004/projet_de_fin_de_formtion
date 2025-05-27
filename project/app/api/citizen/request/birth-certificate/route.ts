@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         fatherFullName: fatherFullName || null,
         motherFullName: motherFullName || null,
         acteNumber: acteNumber || null,
-        status: 'PENDING',
+        status: 'en_attente',
         trackingNumber: nanoid(10),
         files: {
           create: [

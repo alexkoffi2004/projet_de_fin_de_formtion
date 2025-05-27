@@ -1,39 +1,38 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { BirthCertificate, BirthDeclaration } from '@prisma/client';
 
-export async function GET(request: Request) {
+type BirthCertificateWithCitizen = BirthCertificate & {
+  citizen: {
+    name: string | null;
+    email: string;
+  };
+};
+
+type BirthDeclarationWithCitizen = BirthDeclaration & {
+  citizen: {
+    name: string | null;
+    email: string;
+  };
+};
+
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, message: 'Non autorisé' },
-        { status: 401 }
-      );
+
+    if (!session?.user?.email) {
+      return new NextResponse("Non autorisé", { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const search = searchParams.get('search');
-
-    const where: any = {};
-
-    if (status && status !== 'ALL') {
-      where.status = status;
-    }
-
-    if (search) {
-      where.OR = [
-        { trackingNumber: { contains: search, mode: 'insensitive' } },
-        { childName: { contains: search, mode: 'insensitive' } },
-        { citizen: { name: { contains: search, mode: 'insensitive' } } }
-      ];
-    }
-
-    const requests = await prisma.birthDeclaration.findMany({
-      where,
+    // Récupérer les actes de naissance
+    const birthCertificates = await prisma.birthCertificate.findMany({
+      where: {
+        status: {
+          not: 'DELETED'
+        }
+      },
       include: {
         citizen: {
           select: {
@@ -47,15 +46,66 @@ export async function GET(request: Request) {
       }
     });
 
+    // Récupérer les déclarations de naissance
+    const birthDeclarations = await prisma.birthDeclaration.findMany({
+      where: {
+        status: {
+          not: 'DELETED'
+        }
+      },
+      include: {
+        citizen: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Formater les données pour un affichage uniforme
+    const formattedBirthCertificates = birthCertificates.map((cert: BirthCertificateWithCitizen) => ({
+      id: cert.id,
+      type: 'birth_certificate' as const,
+      fullName: cert.fullName,
+      birthDate: cert.birthDate,
+      birthPlace: cert.birthPlace,
+      status: cert.status,
+      createdAt: cert.createdAt,
+      citizen: {
+        name: cert.citizen.name || 'N/A',
+        email: cert.citizen.email
+      }
+    }));
+
+    const formattedBirthDeclarations = birthDeclarations.map((decl: BirthDeclarationWithCitizen) => ({
+      id: decl.id,
+      type: 'birth_declaration' as const,
+      childFirstName: decl.childFirstName,
+      childLastName: decl.childLastName,
+      birthDate: decl.birthDate,
+      birthPlace: decl.birthPlace,
+      status: decl.status,
+      createdAt: decl.createdAt,
+      citizen: {
+        name: decl.citizen.name || 'N/A',
+        email: decl.citizen.email
+      }
+    }));
+
+    // Combiner et trier toutes les demandes par date de création
+    const allRequests = [...formattedBirthCertificates, ...formattedBirthDeclarations]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
     return NextResponse.json({
       success: true,
-      data: requests
+      data: allRequests
     });
   } catch (error) {
-    console.error('Error fetching agent requests:', error);
-    return NextResponse.json(
-      { success: false, message: 'Erreur lors de la récupération des demandes' },
-      { status: 500 }
-    );
+    console.error('Erreur lors de la récupération des demandes:', error);
+    return new NextResponse("Erreur interne du serveur", { status: 500 });
   }
 } 

@@ -87,20 +87,20 @@ const RequestDetails = ({ params }: { params: { id: string } }) => {
 
   const getStatusColor = (status: string) => {
     const colors = {
-      PENDING: 'orange',
-      IN_PROGRESS: 'blue',
-      COMPLETED: 'green',
-      REJECTED: 'red'
+      en_attente: 'orange',
+      en_cours: 'blue',
+      complété: 'green',
+      rejeté: 'red'
     };
     return colors[status as keyof typeof colors] || 'default';
   };
 
   const getStatusText = (status: string) => {
     const texts = {
-      PENDING: 'En attente',
-      IN_PROGRESS: 'En cours',
-      COMPLETED: 'Complété',
-      REJECTED: 'Rejeté'
+      en_attente: 'En attente',
+      en_cours: 'En cours',
+      complété: 'Complété',
+      rejeté: 'Rejeté'
     };
     return texts[status as keyof typeof texts] || status;
   };
@@ -115,17 +115,17 @@ const RequestDetails = ({ params }: { params: { id: string } }) => {
       }
     ];
 
-    if (request.status === 'IN_PROGRESS') {
+    if (request.status === 'en_cours') {
       items.push({
         color: 'blue',
         children: `En cours de traitement`
       });
-    } else if (request.status === 'COMPLETED') {
+    } else if (request.status === 'complété') {
       items.push({
         color: 'green',
         children: `Demande complétée le ${new Date(request.updatedAt).toLocaleDateString()}`
       });
-    } else if (request.status === 'REJECTED') {
+    } else if (request.status === 'rejeté') {
       items.push({
         color: 'red',
         children: `Demande rejetée le ${new Date(request.updatedAt).toLocaleDateString()}`
@@ -257,12 +257,12 @@ const RequestDetails = ({ params }: { params: { id: string } }) => {
           <Timeline items={getTimelineItems()} />
         </Card>
 
-        {request.status === 'PENDING' && (
+        {request.status === 'en_attente' && (
           <Space>
             <Button
               type="primary"
               icon={<CheckOutlined />}
-              onClick={() => updateRequestStatus('IN_PROGRESS')}
+              onClick={() => updateRequestStatus('en_cours')}
               loading={updating}
             >
               Prendre en charge
@@ -270,7 +270,7 @@ const RequestDetails = ({ params }: { params: { id: string } }) => {
             <Button
               danger
               icon={<CloseOutlined />}
-              onClick={() => updateRequestStatus('REJECTED')}
+              onClick={() => updateRequestStatus('rejeté')}
               loading={updating}
             >
               Rejeter
@@ -278,12 +278,12 @@ const RequestDetails = ({ params }: { params: { id: string } }) => {
           </Space>
         )}
 
-        {request.status === 'IN_PROGRESS' && (
+        {request.status === 'en_cours' && (
           <Space>
             <Button
               type="primary"
               icon={<CheckOutlined />}
-              onClick={() => updateRequestStatus('COMPLETED')}
+              onClick={() => updateRequestStatus('complété')}
               loading={updating}
             >
               Valider
@@ -291,7 +291,7 @@ const RequestDetails = ({ params }: { params: { id: string } }) => {
             <Button
               danger
               icon={<CloseOutlined />}
-              onClick={() => updateRequestStatus('REJECTED')}
+              onClick={() => updateRequestStatus('rejeté')}
               loading={updating}
             >
               Rejeter

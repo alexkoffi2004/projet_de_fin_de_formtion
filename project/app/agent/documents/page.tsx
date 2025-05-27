@@ -81,11 +81,16 @@ export default function AgentDocuments() {
     setIsUpdating(true);
     try {
       const response = await fetch('/api/agent/birth-certificates', {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ documentId, status }),
+        body: JSON.stringify({ 
+          id: documentId, 
+          status: status === "approuvé" ? "approuvé" :
+                 status === "rejeté" ? "rejeté" :
+                 status === "en_attente" ? "en_attente" : status 
+        }),
       });
 
       if (!response.ok) {
@@ -112,11 +117,11 @@ export default function AgentDocuments() {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case "APPROVED":
+      case "approuvé":
         return "success";
-      case "REJECTED":
+      case "rejeté":
         return "destructive";
-      case "PENDING":
+      case "en_attente":
       default:
         return "outline";
     }
@@ -124,11 +129,11 @@ export default function AgentDocuments() {
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case "APPROVED":
+      case "approuvé":
         return "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-100";
-      case "REJECTED":
+      case "rejeté":
         return "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900 dark:text-red-100";
-      case "PENDING":
+      case "en_attente":
       default:
         return "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100";
     }
@@ -136,11 +141,11 @@ export default function AgentDocuments() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "APPROVED":
+      case "approuvé":
         return "Validé";
-      case "REJECTED":
+      case "rejeté":
         return "Rejeté";
-      case "PENDING":
+      case "en_attente":
       default:
         return "En attente";
     }
@@ -252,13 +257,13 @@ export default function AgentDocuments() {
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                      ) : filteredDocuments.filter(doc => doc.status === "PENDING").length === 0 ? (
+                      ) : filteredDocuments.filter(doc => doc.status === "en_attente").length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           Aucune demande en attente
                         </div>
                       ) : (
                         filteredDocuments
-                          .filter(doc => doc.status === "PENDING")
+                          .filter(doc => doc.status === "en_attente")
                           .map((doc) => (
                             <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
                               <div>{doc.trackingNumber}</div>
@@ -307,13 +312,13 @@ export default function AgentDocuments() {
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                      ) : filteredDocuments.filter(doc => doc.status === "APPROVED").length === 0 ? (
+                      ) : filteredDocuments.filter(doc => doc.status === "approuvé").length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           Aucune demande validée
                         </div>
                       ) : (
                         filteredDocuments
-                          .filter(doc => doc.status === "APPROVED")
+                          .filter(doc => doc.status === "approuvé")
                           .map((doc) => (
                             <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
                               <div>{doc.trackingNumber}</div>
@@ -362,13 +367,13 @@ export default function AgentDocuments() {
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-8 w-8 animate-spin" />
                         </div>
-                      ) : filteredDocuments.filter(doc => doc.status === "REJECTED").length === 0 ? (
+                      ) : filteredDocuments.filter(doc => doc.status === "rejeté").length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           Aucune demande rejetée
                         </div>
                       ) : (
                         filteredDocuments
-                          .filter(doc => doc.status === "REJECTED")
+                          .filter(doc => doc.status === "rejeté")
                           .map((doc) => (
                             <div key={doc.id} className="grid grid-cols-6 p-4 hover:bg-muted/50">
                               <div>{doc.trackingNumber}</div>
@@ -420,7 +425,7 @@ export default function AgentDocuments() {
             <Button
               variant="outline"
               className="flex items-center space-x-2"
-              onClick={() => updateDocumentStatus(selectedDocument!.id, 'PENDING')}
+              onClick={() => updateDocumentStatus(selectedDocument!.id, 'en_attente')}
               disabled={isUpdating}
             >
               <Clock className="h-4 w-4" />
@@ -429,7 +434,7 @@ export default function AgentDocuments() {
             <Button
               variant="outline"
               className="flex items-center space-x-2"
-              onClick={() => updateDocumentStatus(selectedDocument!.id, 'APPROVED')}
+              onClick={() => updateDocumentStatus(selectedDocument!.id, 'approuvé')}
               disabled={isUpdating}
             >
               <CheckCircle className="h-4 w-4" />
@@ -438,7 +443,7 @@ export default function AgentDocuments() {
             <Button
               variant="outline"
               className="flex items-center space-x-2"
-              onClick={() => updateDocumentStatus(selectedDocument!.id, 'REJECTED')}
+              onClick={() => updateDocumentStatus(selectedDocument!.id, 'rejeté')}
               disabled={isUpdating}
             >
               <AlertCircle className="h-4 w-4" />
