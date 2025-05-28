@@ -59,6 +59,14 @@ export default function CitizenDocuments() {
 
   useEffect(() => {
     fetchDocuments();
+    
+    // Rafraîchir les données toutes les 30 secondes
+    const interval = setInterval(() => {
+      fetchDocuments();
+    }, 30000);
+
+    // Nettoyer l'intervalle lors du démontage du composant
+    return () => clearInterval(interval);
   }, []);
 
   const fetchDocuments = async () => {

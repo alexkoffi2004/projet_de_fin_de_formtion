@@ -56,6 +56,14 @@ export default function AgentDashboardPage() {
 
   useEffect(() => {
     fetchStats();
+
+    // Rafraîchir les statistiques toutes les 30 secondes
+    const interval = setInterval(() => {
+      fetchStats();
+    }, 30000);
+
+    // Nettoyer l'intervalle lors du démontage du composant
+    return () => clearInterval(interval);
   }, []);
 
   const fetchStats = async () => {

@@ -110,6 +110,27 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // Vérifier si l'admin a déjà validé la demande
+    const existingCertificate = await prisma.birthCertificate.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!existingCertificate) {
+      return NextResponse.json(
+        { success: false, message: 'Demande non trouvée' },
+        { status: 404 }
+      );
+    }
+
+    // Si l'admin a déjà validé ou rejeté la demande, empêcher la modification
+    if (existingCertificate.status === 'approuvé' || existingCertificate.status === 'rejeté') {
+      return NextResponse.json(
+        { success: false, message: 'Cette demande a déjà été traitée par l\'administrateur' },
+        { status: 403 }
+      );
+    }
+
     // Convertir le statut au format correct
     const normalizedStatus = status === "approuvé" ? "approuvé" :
                            status === "rejeté" ? "rejeté" :
@@ -125,13 +146,6 @@ export async function PATCH(request: Request) {
         updatedAt: new Date()
       },
     });
-
-    if (!updatedCertificate) {
-      return NextResponse.json(
-        { success: false, message: 'Demande non trouvée' },
-        { status: 404 }
-      );
-    }
 
     return NextResponse.json({
       success: true,

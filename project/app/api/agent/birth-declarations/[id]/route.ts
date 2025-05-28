@@ -72,6 +72,27 @@ export async function PATCH(
       );
     }
 
+    // Vérifier si l'admin a déjà validé la déclaration
+    const existingDeclaration = await prisma.birthDeclaration.findUnique({
+      where: { id: params.id },
+      select: { status: true }
+    });
+
+    if (!existingDeclaration) {
+      return NextResponse.json(
+        { success: false, message: 'Déclaration non trouvée' },
+        { status: 404 }
+      );
+    }
+
+    // Si l'admin a déjà validé ou rejeté la déclaration, empêcher la modification
+    if (existingDeclaration.status === 'approuvé' || existingDeclaration.status === 'rejeté') {
+      return NextResponse.json(
+        { success: false, message: 'Cette déclaration a déjà été traitée par l\'administrateur' },
+        { status: 403 }
+      );
+    }
+
     const updatedDeclaration = await prisma.birthDeclaration.update({
       where: { id: params.id },
       data: { status },

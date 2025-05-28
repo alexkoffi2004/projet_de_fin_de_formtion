@@ -93,6 +93,12 @@ export default function AdminDashboard() {
             <Link href="/admin/dashboard" className="font-medium text-primary">
               Tableau de bord
             </Link>
+            <Link href="/admin/dashboard/users" className="text-muted-foreground transition-colors hover:text-foreground">
+              Gestion des Utilisateurs
+            </Link>
+            <Link href="/admin/dashboard/documents" className="text-muted-foreground transition-colors hover:text-foreground">
+              Gestion des Documents
+            </Link>
             <Link href="/admin/dashboard/agents" className="text-muted-foreground transition-colors hover:text-foreground">
               Gestion des Agents
             </Link>
@@ -201,13 +207,17 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-4">
+                  <Button className="w-full" variant="outline" onClick={() => router.push('/admin/dashboard/users')}>
+                    <UserCog className="mr-2 h-4 w-4" />
+                    Gérer les Utilisateurs
+                  </Button>
+                  <Button className="w-full" variant="outline" onClick={() => router.push('/admin/dashboard/documents')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Gérer les Documents
+                  </Button>
                   <Button className="w-full" variant="outline" onClick={() => router.push('/admin/dashboard/agents')}>
                     <Users className="mr-2 h-4 w-4" />
                     Gérer les Agents
-                  </Button>
-                  <Button className="w-full" variant="outline" onClick={() => router.push('/admin/dashboard/document-types')}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Types de Documents
                   </Button>
                   <Button className="w-full" variant="outline" onClick={() => router.push('/admin/dashboard/statistics')}>
                     <BarChart3 className="mr-2 h-4 w-4" />
