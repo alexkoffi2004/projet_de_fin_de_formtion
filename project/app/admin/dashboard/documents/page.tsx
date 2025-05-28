@@ -45,6 +45,9 @@ export default function DocumentsManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [documentToReject, setDocumentToReject] = useState<Document | null>(null);
 
   useEffect(() => {
     fetchDocuments();
@@ -68,6 +71,15 @@ export default function DocumentsManagementPage() {
   };
 
   const handleStatusChange = async (documentId: string, newStatus: string) => {
+    if (newStatus === "rejeté") {
+      const doc = documents.find(d => d.id === documentId);
+      if (doc) {
+        setDocumentToReject(doc);
+        setIsRejectDialogOpen(true);
+      }
+      return;
+    }
+
     try {
       const response = await fetch(`/api/admin/documents/${documentId}/status`, {
         method: "PATCH",
@@ -90,6 +102,52 @@ export default function DocumentsManagementPage() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!documentToReject || !rejectReason.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez saisir un motif de rejet",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/documents/${documentToReject.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          status: "rejeté",
+          rejectReason: rejectReason.trim()
+        }),
+      });
+
+      if (!response.ok) throw new Error("Erreur lors de la modification du statut");
+
+      toast({
+        title: "Succès",
+        description: "Document rejeté avec succès",
+      });
+
+      setIsRejectDialogOpen(false);
+      setRejectReason("");
+      setDocumentToReject(null);
+      fetchDocuments();
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de rejeter le document",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRejectCancel = () => {
+    setIsRejectDialogOpen(false);
+    setRejectReason("");
+    setDocumentToReject(null);
   };
 
   const handleViewDocument = (document: Document) => {
@@ -176,7 +234,22 @@ export default function DocumentsManagementPage() {
               </div>
               <div>
                 <Label>Statut</Label>
-                <p>{selectedDocument.status}</p>
+                <Select
+                  value={selectedDocument.status}
+                  onValueChange={(value) => {
+                    handleStatusChange(selectedDocument.id, value);
+                    setIsDialogOpen(false);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en_attente">En attente</SelectItem>
+                    <SelectItem value="approuvé">Approuvé</SelectItem>
+                    <SelectItem value="rejeté">Rejeté</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Date de création</Label>
@@ -188,6 +261,39 @@ export default function DocumentsManagementPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer le rejet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>Êtes-vous sûr de vouloir rejeter ce document ?</p>
+            <div>
+              <Label htmlFor="rejectReason">Motif du rejet</Label>
+              <Input
+                id="rejectReason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Saisissez le motif du rejet..."
+                className="mt-2"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={handleRejectCancel}>
+                Annuler
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleRejectConfirm}
+                disabled={!rejectReason.trim()}
+              >
+                Confirmer le rejet
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

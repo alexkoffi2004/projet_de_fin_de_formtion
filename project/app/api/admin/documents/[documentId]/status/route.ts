@@ -32,11 +32,11 @@ export async function PATCH(
       );
     }
 
-    const { status } = await request.json();
+    const { status, rejectReason } = await request.json();
     const { documentId } = params;
 
     // Vérifier d'abord dans les déclarations de naissance
-    let document = await prisma.birthDeclaration.findUnique({
+    const birthDeclaration = await prisma.birthDeclaration.findUnique({
       where: { id: documentId },
       include: {
         citizen: {
@@ -47,9 +47,9 @@ export async function PATCH(
       },
     });
 
-    if (document) {
+    if (birthDeclaration) {
       // Mettre à jour le statut de la déclaration de naissance
-      document = await prisma.birthDeclaration.update({
+      const updatedDeclaration = await prisma.birthDeclaration.update({
         where: { id: documentId },
         data: { status },
         include: {
@@ -60,10 +60,38 @@ export async function PATCH(
           },
         },
       });
-    } else {
-      // Vérifier dans les actes de naissance
-      document = await prisma.birthCertificate.findUnique({
+
+      return NextResponse.json({
+        id: updatedDeclaration.id,
+        type: "BirthDeclaration",
+        status: updatedDeclaration.status,
+        createdAt: updatedDeclaration.createdAt,
+        updatedAt: updatedDeclaration.updatedAt,
+        citizenId: updatedDeclaration.citizenId,
+        citizenName: updatedDeclaration.citizen.name
+      });
+    }
+
+    // Vérifier dans les actes de naissance
+    const birthCertificate = await prisma.birthCertificate.findUnique({
+      where: { id: documentId },
+      include: {
+        citizen: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (birthCertificate) {
+      // Mettre à jour le statut de l'acte de naissance
+      const updatedCertificate = await prisma.birthCertificate.update({
         where: { id: documentId },
+        data: { 
+          status,
+          comment: status === "rejeté" ? rejectReason : null
+        },
         include: {
           citizen: {
             select: {
@@ -73,39 +101,22 @@ export async function PATCH(
         },
       });
 
-      if (document) {
-        // Mettre à jour le statut de l'acte de naissance
-        document = await prisma.birthCertificate.update({
-          where: { id: documentId },
-          data: { status },
-          include: {
-            citizen: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        });
-      } else {
-        return NextResponse.json(
-          { error: "Document non trouvé" },
-          { status: 404 }
-        );
-      }
+      return NextResponse.json({
+        id: updatedCertificate.id,
+        type: "BirthCertificate",
+        status: updatedCertificate.status,
+        createdAt: updatedCertificate.createdAt,
+        updatedAt: updatedCertificate.updatedAt,
+        citizenId: updatedCertificate.citizenId,
+        citizenName: updatedCertificate.citizen.name,
+        comment: updatedCertificate.comment
+      });
     }
 
-    // Transformer la réponse dans un format uniforme
-    const response = {
-      id: document.id,
-      type: document instanceof prisma.birthDeclaration ? "BirthDeclaration" : "BirthCertificate",
-      status: document.status,
-      createdAt: document.createdAt,
-      updatedAt: document.updatedAt,
-      citizenId: document.citizenId,
-      citizenName: document.citizen.name,
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json(
+      { error: "Document non trouvé" },
+      { status: 404 }
+    );
   } catch (error) {
     console.error("Erreur lors de la mise à jour du statut:", error);
     return NextResponse.json(

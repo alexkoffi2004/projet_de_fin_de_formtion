@@ -48,6 +48,7 @@ model BirthDeclaration {
   motherFirstName String
   motherLastName  String
   status          String   @default("en_attente")
+  rejectReason    String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   documents       Document[]
@@ -143,6 +144,7 @@ model BirthCertificate {
   motherFullName  String?
   acteNumber      String?
   status          String   @default("PENDING")
+  rejectReason    String?
   trackingNumber  String   @unique
   comment         String?
   files           Document[]

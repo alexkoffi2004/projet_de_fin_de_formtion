@@ -13,20 +13,26 @@ interface Document {
   id: string;
   type: string;
   url: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface BirthCertificateRequest {
   id: string;
+  citizenId: string;
   fullName: string;
   birthDate: Date;
   birthPlace: string;
   fatherFullName?: string;
   motherFullName?: string;
+  acteNumber?: string;
   status: string;
+  rejectReason?: string;
   trackingNumber: string;
+  comment?: string;
   createdAt: Date;
   updatedAt: Date;
-  comment?: string;
+  agentId?: string;
   citizen: {
     name: string;
     email: string;
@@ -304,7 +310,17 @@ const DocumentDetails = ({ params }: { params: { id: string } }) => {
             <Card title="Actions">
               <Alert
                 message="Cette demande a été traitée par l'administrateur"
-                description="Vous ne pouvez plus modifier le statut de cette demande."
+                description={
+                  request.status === 'rejeté' && request.comment ? (
+                    <div>
+                      <p>Vous ne pouvez plus modifier le statut de cette demande.</p>
+                      <p style={{ marginTop: '8px', fontWeight: 'bold' }}>Motif du rejet :</p>
+                      <p>{request.comment}</p>
+                    </div>
+                  ) : (
+                    "Vous ne pouvez plus modifier le statut de cette demande."
+                  )
+                }
                 type="info"
                 showIcon
               />
